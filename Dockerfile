@@ -1,4 +1,4 @@
-# Dockerfile para quipu-server (NestJS Backend)
+# Dockerfile para gabino-agrogestion-api (NestJS Backend)
 
 FROM node:20-alpine AS builder
 
