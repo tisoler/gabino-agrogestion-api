@@ -31,3 +31,4 @@ cd gabino-agrogestion-ui
 pnpm install
 pnpm run dev
 ```
+prueba
