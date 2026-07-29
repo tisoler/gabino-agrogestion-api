@@ -17,7 +17,7 @@ jobs:
           key: ${{ secrets.DROPLET_SSH_KEY }}
           port: ${{ secrets.DROPLET_PORT || 22 }}
           script: |
-            cd /var/www/gabino-agrogestion
+            cd /var/www/gabino-agrogestion/gabino-agrogestion-api
             git pull origin main
             docker compose build
             docker compose up -d
