@@ -1,0 +1,43 @@
+# Dockerfile para quipu-server (NestJS Backend)
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY package.json pnpm-lock.yaml ./
+
+# Instalar pnpm
+RUN npm install -g pnpm
+
+# Instalar dependencias
+RUN pnpm install --frozen-lockfile
+
+# Copiar código fuente
+COPY . .
+
+# Compilar la aplicación
+RUN pnpm run build
+
+# Imagen de producción
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar pnpm
+RUN npm install -g pnpm
+
+# Copiar archivos de dependencias
+COPY package.json pnpm-lock.yaml ./
+
+# Instalar solo dependencias de producción
+RUN pnpm install --prod --frozen-lockfile
+
+# Copiar código compilado desde el builder
+COPY --from=builder /app/dist ./dist
+
+# Exponer puerto
+EXPOSE 3065
+
+# Comando para iniciar la aplicación
+CMD ["node", "dist/src/main.js"]
