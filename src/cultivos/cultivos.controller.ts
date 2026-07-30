@@ -20,7 +20,7 @@ export class CultivosController {
   @Permissions('escritura:cultivo')
   @ApiOperation({ summary: 'Crear un nuevo cultivo' })
   create(@Body() createCultivoDto: CreateCultivoDto, @Request() req) {
-    return this.cultivosService.create(createCultivoDto, req.user);
+    return this.cultivosService.create(createCultivoDto, req.user, req.user.currentEmpresaId);
   }
 
   @Get()
@@ -62,7 +62,7 @@ export class CultivosController {
   @Permissions('escritura:cultivo')
   @ApiOperation({ summary: 'Crear una nueva variedad' })
   createVariedad(@Body() createVariedadDto: CreateVariedadDto, @Request() req) {
-    return this.cultivosService.createVariedad(createVariedadDto, req.user);
+    return this.cultivosService.createVariedad(createVariedadDto, req.user, req.user.currentEmpresaId);
   }
 
   @Patch('variedades/:id')

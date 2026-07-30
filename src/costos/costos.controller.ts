@@ -18,7 +18,7 @@ export class CostosController {
   @Permissions('escritura:costo')
   @ApiOperation({ summary: 'Crear un nuevo costo' })
   create(@Body() createCostoDto: CreateCostoDto, @Request() req) {
-    return this.costosService.create(createCostoDto, req.user);
+    return this.costosService.create(createCostoDto, req.user, req.user.currentEmpresaId);
   }
 
   @Get()

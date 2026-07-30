@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Costo } from '../entities/costo.entity';
@@ -30,8 +30,10 @@ export class CostosService {
         query.andWhere('costo.id_empresa IS NULL');
       }
     } else {
-      const currentId = currentEmpresaId || user.idEmpresa;
-      query.andWhere('(costo.id_empresa = :currentId OR costo.id_empresa IS NULL)', { currentId });
+      if (!currentEmpresaId) {
+        return [];
+      }
+      query.andWhere('(costo.id_empresa = :currentId OR costo.id_empresa IS NULL)', { currentId: currentEmpresaId });
     }
 
     return query.getMany();
@@ -41,13 +43,22 @@ export class CostosService {
     return this.costoRepository.findOne({ where: { id, activo: true } });
   }
 
-  create(createCostoDto: CreateCostoDto, user: any) {
+  create(createCostoDto: CreateCostoDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
-    const idEmpresa = isSysAdmin ? (createCostoDto.idEmpresa || null) : (createCostoDto.idEmpresa || user.idEmpresa);
+
+    let idEmpresa: number | null;
+    if (isSysAdmin) {
+      idEmpresa = createCostoDto.idEmpresa ?? null;
+    } else {
+      if (!currentEmpresaId) {
+        throw new BadRequestException('El usuario no tiene una empresa actual seleccionada');
+      }
+      idEmpresa = createCostoDto.idEmpresa ?? currentEmpresaId;
+    }
 
     const costo = this.costoRepository.create({
       ...createCostoDto,
-      idEmpresa
+      idEmpresa,
     });
     return this.costoRepository.save(costo);
   }
@@ -59,15 +70,13 @@ export class CostosService {
     }
 
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
     if (!isSysAdmin) {
       if (costo.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar un costo global');
       }
-      if (
-        !user.idEmpresas?.map((id: string | number) => isNaN(Number(id)) ? -1 : Number(id)).includes(costo.idEmpresa)
-        && parseInt(user.idEmpresa ?? -1) !== costo.idEmpresa
-      ) {
+      if (!userEmpresas.includes(costo.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para editar un costo de otra empresa');
       }
     }

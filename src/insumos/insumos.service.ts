@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Insumo } from '../entities/insumo.entity';
@@ -26,15 +26,14 @@ export class InsumosService {
             query.andWhere('insumo.id_empresa IN (:...ids)', { ids });
           }
         }
-        // If all is true, no filters means everything active
       } else {
-        // Default for sys-admin: see only global ones
         query.andWhere('insumo.id_empresa IS NULL');
       }
     } else {
-      // Para asesores y otros: solo la empresa seleccionada (proviene de x-empresa-id) + globales
-      const currentId = currentEmpresaId || user.idEmpresa;
-      query.andWhere('(insumo.id_empresa = :currentId OR insumo.id_empresa IS NULL)', { currentId });
+      if (!currentEmpresaId) {
+        return [];
+      }
+      query.andWhere('(insumo.id_empresa = :currentId OR insumo.id_empresa IS NULL)', { currentId: currentEmpresaId });
     }
 
     return query.getMany();
@@ -44,15 +43,22 @@ export class InsumosService {
     return this.insumoRepository.findOne({ where: { id, activo: true } });
   }
 
-  create(createInsumoDto: CreateInsumoDto, user: any) {
+  create(createInsumoDto: CreateInsumoDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
-    // Si es sys-admin crea globales, si no, crea de la empresa seleccionada (o para la empresa por defecto del usuario)
-    const idEmpresa = isSysAdmin ? (createInsumoDto.idEmpresa || null) : (createInsumoDto.idEmpresa || user.idEmpresa);
+    let idEmpresa: number | null;
+    if (isSysAdmin) {
+      idEmpresa = createInsumoDto.idEmpresa ?? null;
+    } else {
+      if (!currentEmpresaId) {
+        throw new BadRequestException('El usuario no tiene una empresa actual seleccionada');
+      }
+      idEmpresa = createInsumoDto.idEmpresa ?? currentEmpresaId;
+    }
 
     const insumo = this.insumoRepository.create({
       ...createInsumoDto,
-      idEmpresa
+      idEmpresa,
     });
     return this.insumoRepository.save(insumo);
   }
@@ -64,22 +70,18 @@ export class InsumosService {
     }
 
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
     if (!isSysAdmin) {
       if (insumo.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar un insumo global');
       }
-      if (
-        !user.idEmpresas?.map((id: string | number) => isNaN(Number(id)) ? -1 : Number(id)).includes(insumo.idEmpresa)
-        && parseInt(user.idEmpresa ?? -1) !== insumo.idEmpresa
-      ) {
+      if (!userEmpresas.includes(insumo.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para editar un insumo de otra empresa');
       }
     }
 
-    // Actualizar campos
     Object.assign(insumo, updateInsumoDto);
-
     return this.insumoRepository.save(insumo);
   }
 }

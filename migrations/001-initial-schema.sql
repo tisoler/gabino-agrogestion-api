@@ -1,4 +1,12 @@
 -- Gabino Agrogestión Initial Migration
+--
+-- Convenciones:
+--  * "usuario" y "productor" NO existen en la BD. La identidad vive en
+--    Firestore (colección "usuarios") y la relación con empresas es
+--    su campo "idEmpresas" (array de IDs de la tabla empresa).
+--  * Lotes referencian al dueño del lote por su UID de Firebase en
+--    la columna "id_usuario" (VARCHAR(128)). No hay FK: la consistencia
+--    se valida en el servicio contra las idEmpresas del usuario en Firestore.
 
 -- Empresa
 CREATE TABLE IF NOT EXISTS "empresa" (
@@ -57,7 +65,7 @@ CREATE TABLE IF NOT EXISTS "campania" (
 CREATE TABLE IF NOT EXISTS "lote" (
     "id" SERIAL PRIMARY KEY,
     "id_empresa" INTEGER NOT NULL REFERENCES "empresa"("id") ON DELETE CASCADE,
-    "id_usuario" INTEGER NOT NULL,
+    "id_usuario" VARCHAR(128) NOT NULL,
     "descripcion" TEXT,
     "lat" DECIMAL(10,8),
     "long" DECIMAL(11,8),

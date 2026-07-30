@@ -1,6 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Empresa } from './empresa.entity';
-import { Productor } from './productor.entity';
 
 @Entity('lote')
 export class Lote {
@@ -10,8 +9,13 @@ export class Lote {
   @Column({ name: 'id_empresa' })
   idEmpresa: number;
 
-  @Column({ name: 'id_productor' })
-  idProductor: number;
+  /**
+   * UID de Firebase del usuario "dueño" del lote.
+   * El usuario vive en Firestore y debe pertenecer a la empresa (id_empresa)
+   * vía su campo idEmpresas. No hay FK en la BD.
+   */
+  @Column({ name: 'id_usuario', type: 'varchar', length: 128 })
+  idUsuario: string;
 
   @Column({ nullable: true })
   descripcion: string;
@@ -25,10 +29,6 @@ export class Lote {
   @ManyToOne(() => Empresa)
   @JoinColumn({ name: 'id_empresa' })
   empresa: Empresa;
-
-  @ManyToOne(() => Productor)
-  @JoinColumn({ name: 'id_productor' })
-  productor: Productor;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

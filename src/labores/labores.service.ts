@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Labor } from '../entities/labor.entity';
@@ -30,8 +30,10 @@ export class LaboresService {
         query.andWhere('labor.id_empresa IS NULL');
       }
     } else {
-      const currentId = currentEmpresaId || user.idEmpresa;
-      query.andWhere('(labor.id_empresa = :currentId OR labor.id_empresa IS NULL)', { currentId });
+      if (!currentEmpresaId) {
+        return [];
+      }
+      query.andWhere('(labor.id_empresa = :currentId OR labor.id_empresa IS NULL)', { currentId: currentEmpresaId });
     }
 
     return query.getMany();
@@ -41,13 +43,22 @@ export class LaboresService {
     return this.laborRepository.findOne({ where: { id, activo: true } });
   }
 
-  create(createLaborDto: CreateLaborDto, user: any) {
+  create(createLaborDto: CreateLaborDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
-    const idEmpresa = isSysAdmin ? (createLaborDto.idEmpresa || null) : (createLaborDto.idEmpresa || user.idEmpresa);
+
+    let idEmpresa: number | null;
+    if (isSysAdmin) {
+      idEmpresa = createLaborDto.idEmpresa ?? null;
+    } else {
+      if (!currentEmpresaId) {
+        throw new BadRequestException('El usuario no tiene una empresa actual seleccionada');
+      }
+      idEmpresa = createLaborDto.idEmpresa ?? currentEmpresaId;
+    }
 
     const labor = this.laborRepository.create({
       ...createLaborDto,
-      idEmpresa
+      idEmpresa,
     });
     return this.laborRepository.save(labor);
   }
@@ -59,15 +70,13 @@ export class LaboresService {
     }
 
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
     if (!isSysAdmin) {
       if (labor.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar una labor global');
       }
-      if (
-        !user.idEmpresas?.map((id: string | number) => isNaN(Number(id)) ? -1 : Number(id)).includes(labor.idEmpresa)
-        && parseInt(user.idEmpresa ?? -1) !== labor.idEmpresa
-      ) {
+      if (!userEmpresas.includes(labor.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para editar una labor de otra empresa');
       }
     }

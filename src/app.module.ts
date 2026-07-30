@@ -6,15 +6,19 @@ import { EmpresasModule } from './empresas/empresas.module';
 import { LaboresModule } from './labores/labores.module';
 import { InsumosModule } from './insumos/insumos.module';
 import { CostosModule } from './costos/costos.module';
-import { ProductoresModule } from './productores/productores.module';
 import { CultivosModule } from './cultivos/cultivos.module';
+import { LotesModule } from './lotes/lotes.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { CampaniasModule } from './campanias/campanias.module';
 
 import { Empresa } from './entities/empresa.entity';
 import { Labor } from './entities/labor.entity';
 import { Insumo } from './entities/insumo.entity';
 import { Costo } from './entities/costo.entity';
 import { Campania } from './entities/campania.entity';
-import { Productor } from './entities/productor.entity';
+import { CampaniaLabor } from './entities/campania-labor.entity';
+import { CampaniaInsumo } from './entities/campania-insumo.entity';
+import { CampaniaCosto } from './entities/campania-costo.entity';
 import { Lote } from './entities/lote.entity';
 import { Cultivo } from './entities/cultivo.entity';
 import { Variedad } from './entities/variedad.entity';
@@ -39,7 +43,9 @@ import { Variedad } from './entities/variedad.entity';
           Insumo,
           Costo,
           Campania,
-          Productor,
+          CampaniaLabor,
+          CampaniaInsumo,
+          CampaniaCosto,
           Lote,
           Cultivo,
           Variedad,
@@ -54,8 +60,10 @@ import { Variedad } from './entities/variedad.entity';
     LaboresModule,
     InsumosModule,
     CostosModule,
-    ProductoresModule,
     CultivosModule,
+    LotesModule,
+    UsuariosModule,
+    CampaniasModule,
   ],
 })
 export class AppModule {}

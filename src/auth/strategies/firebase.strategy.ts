@@ -3,11 +3,9 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-custom';
 import { ExtractJwt } from 'passport-jwt';
 import * as admin from 'firebase-admin';
-import { EmpresasService } from '../../empresas/empresas.service';
 import serviceAccount from '../../../firebase-service-account.json';
 import { Roles } from 'src/constantes';
 
-// Inicializar la app si no ha sido inicializada
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount as any),
@@ -17,14 +15,11 @@ if (!admin.apps.length) {
 
 @Injectable()
 export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
-  constructor(
-    private empresasService: EmpresasService,
-  ) {
+  constructor() {
     super();
   }
 
   async validate(req: any): Promise<any> {
-
     const fn = ExtractJwt.fromAuthHeaderAsBearerToken();
     const token = fn(req);
 
@@ -35,7 +30,6 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
       const decodedUser = await admin.auth().verifyIdToken(token);
       const uid = decodedUser.uid;
 
-      // Consultar datos adicionales en Firestore
       const db = admin.firestore();
       const userDoc = await db.collection('usuarios').doc(uid).get();
 
@@ -44,13 +38,11 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
       }
 
       const userData = userDoc.data();
-      const rolId = userData?.idRol;
-      const idEmpresa = userData?.idEmpresa || (userData?.idEmpresas?.length && userData?.idEmpresas?.[0]);
 
-      // Consultar permisos del rol
+      // Permisos del rol
       let permisos: string[] = [];
       let roles: string[] = [];
-
+      const rolId = userData?.idRol;
       if (rolId) {
         const roleDoc = await db.collection('roles').doc(rolId).get();
         const roleData = roleDoc.data();
@@ -61,36 +53,54 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
             .get();
           permisos = permisosDoc.docs.map(doc => doc.data().nombre || doc.id);
         }
-        roles = [roleData.nombre];
+        roles = roleData ? [roleData.nombre] : [];
       }
 
-      const empresa = idEmpresa ? await this.empresasService.findOne(idEmpresa) : null;
+      // Lista normalizada de empresas del usuario (siempre un array de números)
+      const idEmpresas: number[] = Array.isArray(userData?.idEmpresas)
+        ? userData.idEmpresas
+          .map((e: any) => Number(e))
+          .filter((n: number) => Number.isFinite(n) && n > 0)
+        : [];
 
       const isAsesor = roles.includes(Roles.ASESOR);
+      const isSysAdmin = roles.includes(Roles.SYS_ADMIN);
+
+      // El header x-empresa-id es la "empresa actual" elegida en el FE.
+      // Sólo se honra si el usuario la tiene en su idEmpresas (asesor / productor)
+      // o si es sys-admin (puede pedir cualquier empresa).
       const requestedEmpresaId = req.headers['x-empresa-id'];
+      let currentEmpresaId: number | null = null;
 
-      let finalIdEmpresa = idEmpresa;
-      let finalNombreEmpresa = empresa?.nombre || null;
-
-      if (requestedEmpresaId && isAsesor) {
-        const reqId = parseInt(requestedEmpresaId, 10);
-        if (isAsesor && userData?.idEmpresas?.includes(reqId)) {
-          finalIdEmpresa = reqId;
-          const reqEmpresa = await this.empresasService.findOne(reqId);
-          finalNombreEmpresa = reqEmpresa?.nombre || null;
+      if (requestedEmpresaId) {
+        const reqId = Number(requestedEmpresaId);
+        if (Number.isFinite(reqId) && reqId > 0) {
+          if (isSysAdmin) {
+            currentEmpresaId = reqId;
+          } else if (isAsesor || roles.includes(Roles.PRODUCTOR)) {
+            if (idEmpresas.includes(reqId)) {
+              currentEmpresaId = reqId;
+            }
+          }
         }
       }
-      // Devolver un objeto de usuario enriquecido con Firestore y Firebase Auth
+
+      // Fallback a la primera empresa del usuario: sólo para no-sys-admin.
+      // Para sys-admin, idEmpresas (si lo tiene poblado) se ignora: el sys-admin
+      // trabaja con la admin-toggle y nunca tiene "empresa actual" seleccionada.
+      if (!isSysAdmin && currentEmpresaId === null && idEmpresas.length > 0) {
+        currentEmpresaId = idEmpresas[0];
+      }
+
       return {
         id: uid,
         firebaseUid: uid,
         nombreUsuario: decodedUser.email,
         email: decodedUser.email,
-        idEmpresa: finalIdEmpresa,
-        nombreEmpresa: finalNombreEmpresa,
-        idEmpresas: userData?.idEmpresas || [], // Lista de empresas para asesores
-        roles: roles,
-        permisos: permisos,
+        idEmpresas,
+        currentEmpresaId,
+        roles,
+        permisos,
       };
     } catch (e) {
       if (e instanceof UnauthorizedException) throw e;

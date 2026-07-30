@@ -18,7 +18,7 @@ export class InsumosController {
   @Permissions('escritura:insumo')
   @ApiOperation({ summary: 'Crear un nuevo insumo' })
   create(@Body() createInsumoDto: CreateInsumoDto, @Request() req) {
-    return this.insumosService.create(createInsumoDto, req.user);
+    return this.insumosService.create(createInsumoDto, req.user, req.user.currentEmpresaId);
   }
 
   @Get()

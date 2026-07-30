@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cultivo } from '../entities/cultivo.entity';
@@ -36,29 +36,40 @@ export class CultivosService {
         query.andWhere('cultivo.id_empresa IS NULL');
       }
     } else {
-      const currentId = currentEmpresaId || user.idEmpresa;
-      query.andWhere('(cultivo.id_empresa = :currentId OR cultivo.id_empresa IS NULL)', { currentId });
+      if (!currentEmpresaId) {
+        return [];
+      }
+      query.andWhere('(cultivo.id_empresa = :currentId OR cultivo.id_empresa IS NULL)', { currentId: currentEmpresaId });
     }
 
     return query.getMany();
   }
 
   async findOne(id: number) {
-    const cultivo = await this.cultivoRepository.findOne({ 
+    const cultivo = await this.cultivoRepository.findOne({
       where: { id },
-      relations: ['variedades']
+      relations: ['variedades'],
     });
     if (!cultivo) throw new NotFoundException('Cultivo no encontrado');
     return cultivo;
   }
 
-  create(createCultivoDto: CreateCultivoDto, user: any) {
+  create(createCultivoDto: CreateCultivoDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
-    const idEmpresa = isSysAdmin ? (createCultivoDto.idEmpresa || null) : (createCultivoDto.idEmpresa || user.idEmpresa);
+
+    let idEmpresa: number | null;
+    if (isSysAdmin) {
+      idEmpresa = createCultivoDto.idEmpresa ?? null;
+    } else {
+      if (!currentEmpresaId) {
+        throw new BadRequestException('El usuario no tiene una empresa actual seleccionada');
+      }
+      idEmpresa = createCultivoDto.idEmpresa ?? currentEmpresaId;
+    }
 
     const cultivo = this.cultivoRepository.create({
       ...createCultivoDto,
-      idEmpresa
+      idEmpresa,
     });
     return this.cultivoRepository.save(cultivo);
   }
@@ -68,10 +79,13 @@ export class CultivosService {
     if (!cultivo) throw new NotFoundException('Cultivo no encontrado');
 
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
+
     if (!isSysAdmin) {
-      if (cultivo.idEmpresa === null) throw new ForbiddenException('No tiene permisos para editar un cultivo global');
-      const authorizedEmpresas = user.idEmpresas?.map(id => Number(id)) || [];
-      if (!authorizedEmpresas.includes(cultivo.idEmpresa) && Number(user.idEmpresa) !== cultivo.idEmpresa) {
+      if (cultivo.idEmpresa === null) {
+        throw new ForbiddenException('No tiene permisos para editar un cultivo global');
+      }
+      if (!userEmpresas.includes(cultivo.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para editar un cultivo de otra empresa');
       }
     }
@@ -80,17 +94,22 @@ export class CultivosService {
     return this.cultivoRepository.save(cultivo);
   }
 
-  // Variety Methods
-  async createVariedad(createVariedadDto: CreateVariedadDto, user: any) {
+  async createVariedad(createVariedadDto: CreateVariedadDto, user: any, currentEmpresaId?: number) {
     const cultivo = await this.cultivoRepository.findOne({ where: { id: createVariedadDto.idCultivo } });
     if (!cultivo) throw new NotFoundException('Cultivo no encontrado');
 
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
-    const idEmpresa = cultivo.idEmpresa; // Variedad hereda idEmpresa del cultivo
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
+
+    if (!isSysAdmin && cultivo.idEmpresa !== null && !userEmpresas.includes(cultivo.idEmpresa)) {
+      throw new ForbiddenException('No tiene permisos para agregar una variedad a este cultivo');
+    }
+
+    const idEmpresa = cultivo.idEmpresa ?? currentEmpresaId ?? null;
 
     const variedad = this.variedadRepository.create({
       ...createVariedadDto,
-      idEmpresa
+      idEmpresa,
     });
     return this.variedadRepository.save(variedad);
   }
@@ -100,10 +119,13 @@ export class CultivosService {
     if (!variedad) throw new NotFoundException('Variedad no encontrada');
 
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
+
     if (!isSysAdmin) {
-      if (variedad.idEmpresa === null) throw new ForbiddenException('No tiene permisos para editar una variedad global');
-      const authorizedEmpresas = user.idEmpresas?.map(id => Number(id)) || [];
-      if (!authorizedEmpresas.includes(variedad.idEmpresa) && Number(user.idEmpresa) !== variedad.idEmpresa) {
+      if (variedad.idEmpresa === null) {
+        throw new ForbiddenException('No tiene permisos para editar una variedad global');
+      }
+      if (!userEmpresas.includes(variedad.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para editar una variedad de otra empresa');
       }
     }

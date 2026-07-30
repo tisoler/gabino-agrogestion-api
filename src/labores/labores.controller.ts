@@ -18,7 +18,7 @@ export class LaboresController {
   @Permissions('escritura:labor')
   @ApiOperation({ summary: 'Crear una nueva labor' })
   create(@Body() createLaborDto: CreateLaborDto, @Request() req) {
-    return this.laboresService.create(createLaborDto, req.user);
+    return this.laboresService.create(createLaborDto, req.user, req.user.currentEmpresaId);
   }
 
   @Get()

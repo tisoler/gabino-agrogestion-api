@@ -1,13 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { FirebaseStrategy } from './strategies/firebase.strategy';
-import { EmpresasModule } from '../empresas/empresas.module';
 import { AuthController } from './auth.controller';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'firebase' }),
-    EmpresasModule,
   ],
   providers: [FirebaseStrategy],
   controllers: [AuthController],
