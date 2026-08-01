@@ -5,6 +5,7 @@ import { Insumo } from '../entities/insumo.entity';
 import { CreateInsumoDto } from './dto/create-insumo.dto';
 import { UpdateInsumoDto } from './dto/update-insumo.dto';
 import { Roles } from 'src/constantes';
+import { assertNombreUnico, normalizeNombre, translateUniqueViolation } from '../utils/nombre';
 
 @Injectable()
 export class InsumosService {
@@ -19,13 +20,15 @@ export class InsumosService {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     if (isSysAdmin) {
-      if (all) {
+      if (all && !currentEmpresaId) {
         if (companyIds) {
           const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
           if (ids.length > 0) {
             query.andWhere('insumo.id_empresa IN (:...ids)', { ids });
           }
         }
+      } else if (currentEmpresaId) {
+        query.andWhere('(insumo.id_empresa IS NULL OR insumo.id_empresa = :currentId)', { currentId: currentEmpresaId });
       } else {
         query.andWhere('insumo.id_empresa IS NULL');
       }
@@ -43,7 +46,7 @@ export class InsumosService {
     return this.insumoRepository.findOne({ where: { id, activo: true } });
   }
 
-  create(createInsumoDto: CreateInsumoDto, user: any, currentEmpresaId?: number) {
+  async create(createInsumoDto: CreateInsumoDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     let idEmpresa: number | null;
@@ -56,11 +59,19 @@ export class InsumosService {
       idEmpresa = createInsumoDto.idEmpresa ?? currentEmpresaId;
     }
 
-    const insumo = this.insumoRepository.create({
-      ...createInsumoDto,
-      idEmpresa,
-    });
-    return this.insumoRepository.save(insumo);
+    const nombre = normalizeNombre(createInsumoDto.nombre);
+    await assertNombreUnico(this.insumoRepository, nombre, idEmpresa);
+
+    try {
+      const insumo = this.insumoRepository.create({
+        ...createInsumoDto,
+        nombre,
+        idEmpresa,
+      });
+      return await this.insumoRepository.save(insumo);
+    } catch (e) {
+      translateUniqueViolation(e, 'insumo');
+    }
   }
 
   async update(id: number, updateInsumoDto: UpdateInsumoDto, user: any) {
@@ -81,7 +92,22 @@ export class InsumosService {
       }
     }
 
-    Object.assign(insumo, updateInsumoDto);
-    return this.insumoRepository.save(insumo);
+    if (updateInsumoDto.nombre !== undefined) {
+      const nuevoNombre = normalizeNombre(updateInsumoDto.nombre);
+      if (nuevoNombre !== insumo.nombre) {
+        await assertNombreUnico(this.insumoRepository, nuevoNombre, insumo.idEmpresa, id);
+        insumo.nombre = nuevoNombre;
+      }
+    }
+
+    if (updateInsumoDto.descripcion !== undefined) {
+      insumo.descripcion = updateInsumoDto.descripcion;
+    }
+
+    try {
+      return await this.insumoRepository.save(insumo);
+    } catch (e) {
+      translateUniqueViolation(e, 'insumo');
+    }
   }
 }

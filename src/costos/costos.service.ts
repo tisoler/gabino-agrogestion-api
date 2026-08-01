@@ -5,6 +5,7 @@ import { Costo } from '../entities/costo.entity';
 import { CreateCostoDto } from './dto/create-costo.dto';
 import { UpdateCostoDto } from './dto/update-costo.dto';
 import { Roles } from 'src/constantes';
+import { assertNombreUnico, normalizeNombre, translateUniqueViolation } from '../utils/nombre';
 
 @Injectable()
 export class CostosService {
@@ -19,13 +20,15 @@ export class CostosService {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     if (isSysAdmin) {
-      if (all) {
+      if (all && !currentEmpresaId) {
         if (companyIds) {
           const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
           if (ids.length > 0) {
             query.andWhere('costo.id_empresa IN (:...ids)', { ids });
           }
         }
+      } else if (currentEmpresaId) {
+        query.andWhere('(costo.id_empresa IS NULL OR costo.id_empresa = :currentId)', { currentId: currentEmpresaId });
       } else {
         query.andWhere('costo.id_empresa IS NULL');
       }
@@ -43,7 +46,7 @@ export class CostosService {
     return this.costoRepository.findOne({ where: { id, activo: true } });
   }
 
-  create(createCostoDto: CreateCostoDto, user: any, currentEmpresaId?: number) {
+  async create(createCostoDto: CreateCostoDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     let idEmpresa: number | null;
@@ -56,11 +59,19 @@ export class CostosService {
       idEmpresa = createCostoDto.idEmpresa ?? currentEmpresaId;
     }
 
-    const costo = this.costoRepository.create({
-      ...createCostoDto,
-      idEmpresa,
-    });
-    return this.costoRepository.save(costo);
+    const nombre = normalizeNombre(createCostoDto.nombre);
+    await assertNombreUnico(this.costoRepository, nombre, idEmpresa);
+
+    try {
+      const costo = this.costoRepository.create({
+        ...createCostoDto,
+        nombre,
+        idEmpresa,
+      });
+      return await this.costoRepository.save(costo);
+    } catch (e) {
+      translateUniqueViolation(e, 'costo');
+    }
   }
 
   async update(id: number, updateCostoDto: UpdateCostoDto, user: any) {
@@ -81,7 +92,22 @@ export class CostosService {
       }
     }
 
-    Object.assign(costo, updateCostoDto);
-    return this.costoRepository.save(costo);
+    if (updateCostoDto.nombre !== undefined) {
+      const nuevoNombre = normalizeNombre(updateCostoDto.nombre);
+      if (nuevoNombre !== costo.nombre) {
+        await assertNombreUnico(this.costoRepository, nuevoNombre, costo.idEmpresa, id);
+        costo.nombre = nuevoNombre;
+      }
+    }
+
+    if (updateCostoDto.descripcion !== undefined) {
+      costo.descripcion = updateCostoDto.descripcion;
+    }
+
+    try {
+      return await this.costoRepository.save(costo);
+    } catch (e) {
+      translateUniqueViolation(e, 'costo');
+    }
   }
 }

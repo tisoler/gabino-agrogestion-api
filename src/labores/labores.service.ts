@@ -5,6 +5,7 @@ import { Labor } from '../entities/labor.entity';
 import { CreateLaborDto } from './dto/create-labor.dto';
 import { UpdateLaborDto } from './dto/update-labor.dto';
 import { Roles } from 'src/constantes';
+import { assertNombreUnico, normalizeNombre, translateUniqueViolation } from '../utils/nombre';
 
 @Injectable()
 export class LaboresService {
@@ -19,13 +20,17 @@ export class LaboresService {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     if (isSysAdmin) {
-      if (all) {
+      if (all && !currentEmpresaId) {
+        // Sin empresa destino: respeta el filtro por companyIds del toggle
         if (companyIds) {
           const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
           if (ids.length > 0) {
             query.andWhere('labor.id_empresa IN (:...ids)', { ids });
           }
         }
+      } else if (currentEmpresaId) {
+        // Para cualquier usuario, si hay empresa destino, devolver globales + los de esa empresa
+        query.andWhere('(labor.id_empresa IS NULL OR labor.id_empresa = :currentId)', { currentId: currentEmpresaId });
       } else {
         query.andWhere('labor.id_empresa IS NULL');
       }
@@ -43,7 +48,7 @@ export class LaboresService {
     return this.laborRepository.findOne({ where: { id, activo: true } });
   }
 
-  create(createLaborDto: CreateLaborDto, user: any, currentEmpresaId?: number) {
+  async create(createLaborDto: CreateLaborDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     let idEmpresa: number | null;
@@ -56,11 +61,19 @@ export class LaboresService {
       idEmpresa = createLaborDto.idEmpresa ?? currentEmpresaId;
     }
 
-    const labor = this.laborRepository.create({
-      ...createLaborDto,
-      idEmpresa,
-    });
-    return this.laborRepository.save(labor);
+    const nombre = normalizeNombre(createLaborDto.nombre);
+    await assertNombreUnico(this.laborRepository, nombre, idEmpresa);
+
+    try {
+      const labor = this.laborRepository.create({
+        ...createLaborDto,
+        nombre,
+        idEmpresa,
+      });
+      return await this.laborRepository.save(labor);
+    } catch (e) {
+      translateUniqueViolation(e, 'labor');
+    }
   }
 
   async update(id: number, updateLaborDto: UpdateLaborDto, user: any) {
@@ -81,7 +94,22 @@ export class LaboresService {
       }
     }
 
-    Object.assign(labor, updateLaborDto);
-    return this.laborRepository.save(labor);
+    if (updateLaborDto.nombre !== undefined) {
+      const nuevoNombre = normalizeNombre(updateLaborDto.nombre);
+      if (nuevoNombre !== labor.nombre) {
+        await assertNombreUnico(this.laborRepository, nuevoNombre, labor.idEmpresa, id);
+        labor.nombre = nuevoNombre;
+      }
+    }
+
+    if (updateLaborDto.descripcion !== undefined) {
+      labor.descripcion = updateLaborDto.descripcion;
+    }
+
+    try {
+      return await this.laborRepository.save(labor);
+    } catch (e) {
+      translateUniqueViolation(e, 'labor');
+    }
   }
 }

@@ -8,6 +8,7 @@ import { UpdateCultivoDto } from './dto/update-cultivo.dto';
 import { CreateVariedadDto } from './dto/create-variedad.dto';
 import { UpdateVariedadDto } from './dto/update-variedad.dto';
 import { Roles } from 'src/constantes';
+import { assertNombreUnico, normalizeNombre, translateUniqueViolation } from '../utils/nombre';
 
 @Injectable()
 export class CultivosService {
@@ -54,7 +55,7 @@ export class CultivosService {
     return cultivo;
   }
 
-  create(createCultivoDto: CreateCultivoDto, user: any, currentEmpresaId?: number) {
+  async create(createCultivoDto: CreateCultivoDto, user: any, currentEmpresaId?: number) {
     const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     let idEmpresa: number | null;
@@ -67,11 +68,19 @@ export class CultivosService {
       idEmpresa = createCultivoDto.idEmpresa ?? currentEmpresaId;
     }
 
-    const cultivo = this.cultivoRepository.create({
-      ...createCultivoDto,
-      idEmpresa,
-    });
-    return this.cultivoRepository.save(cultivo);
+    const nombre = normalizeNombre(createCultivoDto.nombre);
+    await assertNombreUnico(this.cultivoRepository, nombre, idEmpresa);
+
+    try {
+      const cultivo = this.cultivoRepository.create({
+        ...createCultivoDto,
+        nombre,
+        idEmpresa,
+      });
+      return await this.cultivoRepository.save(cultivo);
+    } catch (e) {
+      translateUniqueViolation(e, 'cultivo');
+    }
   }
 
   async update(id: number, updateCultivoDto: UpdateCultivoDto, user: any) {
@@ -90,8 +99,23 @@ export class CultivosService {
       }
     }
 
-    Object.assign(cultivo, updateCultivoDto);
-    return this.cultivoRepository.save(cultivo);
+    if (updateCultivoDto.nombre !== undefined) {
+      const nuevoNombre = normalizeNombre(updateCultivoDto.nombre);
+      if (nuevoNombre !== cultivo.nombre) {
+        await assertNombreUnico(this.cultivoRepository, nuevoNombre, cultivo.idEmpresa, id);
+        cultivo.nombre = nuevoNombre;
+      }
+    }
+
+    if (updateCultivoDto.descripcion !== undefined) {
+      cultivo.descripcion = updateCultivoDto.descripcion;
+    }
+
+    try {
+      return await this.cultivoRepository.save(cultivo);
+    } catch (e) {
+      translateUniqueViolation(e, 'cultivo');
+    }
   }
 
   async createVariedad(createVariedadDto: CreateVariedadDto, user: any, currentEmpresaId?: number) {

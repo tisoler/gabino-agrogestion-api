@@ -20,11 +20,19 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Validation pipe
+  //
+  // Configuración defensiva: tolera bodies parciales (PATCHs que sólo
+  // envían los campos modificados) y propiedades extra (las strippea en
+  // silencio), pero sigue aplicando whitelist para no guardar basura,
+  // y coerce tipos (string -> number, etc.) para que un FE que mande
+  // "14" en vez de 14 no rompa la request.
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
       transform: true,
+      transformOptions: { enableImplicitConversion: true },
+      stopAtFirstError: false,
     }),
   );
 
