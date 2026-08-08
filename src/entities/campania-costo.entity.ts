@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Campania } from './campania.entity';
 import { Costo } from './costo.entity';
+import { decimalColumn } from '../utils/decimal';
 
 @Entity('campania_costo')
 export class CampaniaCosto {
@@ -29,10 +30,10 @@ export class CampaniaCosto {
   @JoinColumn({ name: 'id_costo' })
   costo: Costo;
 
-  @Column('decimal', { name: 'unidades_ha', precision: 14, scale: 4 })
+  @Column({ name: 'unidades_ha', ...decimalColumn() })
   unidadesHa: number;
 
-  @Column('decimal', { name: 'costo_unidad', precision: 14, scale: 4 })
+  @Column({ name: 'costo_unidad', ...decimalColumn() })
   costoUnidad: number;
 
   @CreateDateColumn({ name: 'created_at' })

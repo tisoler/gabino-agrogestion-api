@@ -5,21 +5,26 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Campania } from './campania.entity';
-import { decimalColumn } from '../utils/decimal';
 import { Labor } from './labor.entity';
+import { PrescripcionInsumo } from './prescripcion-insumo.entity';
+import { decimalColumn } from '../utils/decimal';
 
-@Entity('campania_labor')
-export class CampaniaLabor {
+@Entity('prescripcion')
+export class Prescripcion {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({ type: 'date' })
+  fecha: string;
 
   @Column({ name: 'id_campania' })
   idCampania: number;
 
-  @ManyToOne(() => Campania, (c) => c.labores, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Campania, { eager: false })
   @JoinColumn({ name: 'id_campania' })
   campania: Campania;
 
@@ -30,14 +35,11 @@ export class CampaniaLabor {
   @JoinColumn({ name: 'id_labor' })
   labor: Labor;
 
-  @Column({ type: 'date' })
-  fecha: string;
+  @Column({ name: 'total_ha_aplicacion', ...decimalColumn() })
+  totalHaAplicacion: number;
 
-  @Column({ name: 'superficie_laboreada', ...decimalColumn() })
-  superficieLaboreada: number;
-
-  @Column({ name: 'costo_labor_ha', ...decimalColumn() })
-  costoLaborHa: number;
+  @OneToMany(() => PrescripcionInsumo, (pi) => pi.prescripcion, { cascade: true })
+  insumos: PrescripcionInsumo[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

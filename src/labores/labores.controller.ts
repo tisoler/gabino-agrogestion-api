@@ -27,14 +27,19 @@ export class LaboresController {
   @ApiQuery({ name: 'all', required: false, type: Boolean })
   @ApiQuery({ name: 'companyIds', required: false, type: String, description: 'IDs de empresas separados por coma' })
   @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number, description: 'ID de la empresa actual' })
+  @ApiQuery({ name: 'soloActivos', required: false, type: Boolean, description: 'Si es true, filtra solo ítems activos' })
+  @ApiQuery({ name: 'scope', required: false, type: String, description: 'global | empresa (para no-admin)' })
   findAll(
     @Request() req,
     @Query('all') all?: string,
     @Query('companyIds') companyIds?: string,
-    @Query('currentEmpresaId') currentEmpresaId?: number
+    @Query('currentEmpresaId') currentEmpresaId?: number,
+    @Query('soloActivos') soloActivos?: string,
+    @Query('scope') scope?: string
   ) {
     const showAll = all === 'true';
-    return this.laboresService.findAll(req.user, showAll, companyIds, currentEmpresaId);
+    const onlyActive = soloActivos === 'true';
+    return this.laboresService.findAll(req.user, showAll, companyIds, currentEmpresaId, onlyActive, scope);
   }
 
   @Get(':id')

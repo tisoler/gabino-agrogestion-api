@@ -14,12 +14,12 @@ export class LaboresService {
     private laborRepository: Repository<Labor>,
   ) { }
 
-  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number) {
+  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number, soloActivos?: boolean, scope?: string) {
     const query = this.laborRepository.createQueryBuilder('labor');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isSysAdmin) {
+    if (isAdmin) {
       if (all && !currentEmpresaId) {
         // Sin empresa destino: respeta el filtro por companyIds del toggle
         if (companyIds) {
@@ -35,10 +35,26 @@ export class LaboresService {
         query.andWhere('labor.id_empresa IS NULL');
       }
     } else {
-      if (!currentEmpresaId) {
+      if (scope === 'global') {
+        query.andWhere('labor.id_empresa IS NULL');
+      } else if (scope === 'empresa' && currentEmpresaId) {
+        query.andWhere('labor.id_empresa = :companyId', { companyId: currentEmpresaId });
+      } else if (all) {
+        const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
+        if (ids.length === 0) {
+          query.andWhere('labor.id_empresa IS NULL');
+        } else {
+          query.andWhere('(labor.id_empresa IS NULL OR labor.id_empresa IN (:...ids))', { ids });
+        }
+      } else if (currentEmpresaId) {
+        query.andWhere('labor.id_empresa = :currentId', { currentId: currentEmpresaId });
+      } else {
         return [];
       }
-      query.andWhere('(labor.id_empresa = :currentId OR labor.id_empresa IS NULL)', { currentId: currentEmpresaId });
+    }
+
+    if (soloActivos) {
+      query.andWhere('labor.activo = true');
     }
 
     return query.getMany();
@@ -49,10 +65,10 @@ export class LaboresService {
   }
 
   async create(createLaborDto: CreateLaborDto, user: any, currentEmpresaId?: number) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
     let idEmpresa: number | null;
-    if (isSysAdmin) {
+    if (isAdmin) {
       idEmpresa = createLaborDto.idEmpresa ?? null;
     } else {
       if (!currentEmpresaId) {
@@ -82,10 +98,10 @@ export class LaboresService {
       throw new NotFoundException('Labor no encontrada');
     }
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin) {
+    if (!isAdmin) {
       if (labor.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar una labor global');
       }
@@ -104,6 +120,14 @@ export class LaboresService {
 
     if (updateLaborDto.descripcion !== undefined) {
       labor.descripcion = updateLaborDto.descripcion;
+    }
+
+    if (updateLaborDto.precioUnitario !== undefined) {
+      labor.precioUnitario = updateLaborDto.precioUnitario;
+    }
+
+    if (updateLaborDto.activo !== undefined) {
+      labor.activo = updateLaborDto.activo;
     }
 
     try {

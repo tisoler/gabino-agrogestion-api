@@ -27,10 +27,10 @@ export class EmpresasService {
   ) { }
 
   findAll(user: any): Promise<Empresa[]> {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (isSysAdmin) {
+    if (isAdmin) {
       return this.empresaRepository.find({
         where: { activo: true },
         order: { nombre: 'ASC' },
@@ -52,9 +52,9 @@ export class EmpresasService {
   }
 
   async create(createEmpresaDto: CreateEmpresaDto, user: any): Promise<Empresa> {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const isAsesor = user.roles?.includes(Roles.ASESOR);
-    if (!isSysAdmin && !isAsesor) {
+    if (!isAdmin && !isAsesor) {
       throw new BadRequestException('No tiene permisos para crear empresas');
     }
     const empresa = this.empresaRepository.create(createEmpresaDto);
@@ -62,10 +62,10 @@ export class EmpresasService {
   }
 
   async findAllWithUsers(user: any): Promise<EmpresaConUsuarios[]> {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const isAsesor = user.roles?.includes(Roles.ASESOR);
 
-    if (!isSysAdmin && !isAsesor) {
+    if (!isAdmin && !isAsesor) {
       throw new ForbiddenException('No tiene permisos para ver esta sección');
     }
 
@@ -99,10 +99,10 @@ export class EmpresasService {
    *  - sys-admin con idEmpresas poblado: idEmpresas se ignora (ver strategy).
    */
   async findUsuariosByEmpresa(empresaId: number, user: any): Promise<UsuarioBasico[]> {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin && !userEmpresas.includes(empresaId)) {
+    if (!isAdmin && !userEmpresas.includes(empresaId)) {
       throw new ForbiddenException('No tiene permisos para ver los usuarios de esta empresa');
     }
 

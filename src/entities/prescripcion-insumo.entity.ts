@@ -7,21 +7,21 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Campania } from './campania.entity';
+import { Prescripcion } from './prescripcion.entity';
 import { Insumo } from './insumo.entity';
 import { decimalColumn } from '../utils/decimal';
 
-@Entity('campania_insumo')
-export class CampaniaInsumo {
+@Entity('prescripcion_insumo')
+export class PrescripcionInsumo {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'id_campania' })
-  idCampania: number;
+  @Column({ name: 'id_prescripcion' })
+  idPrescripcion: number;
 
-  @ManyToOne(() => Campania, (c) => c.insumos, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'id_campania' })
-  campania: Campania;
+  @ManyToOne(() => Prescripcion, (p) => p.insumos, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'id_prescripcion' })
+  prescripcion: Prescripcion;
 
   @Column({ name: 'id_insumo' })
   idInsumo: number;
@@ -30,11 +30,11 @@ export class CampaniaInsumo {
   @JoinColumn({ name: 'id_insumo' })
   insumo: Insumo;
 
-  @Column({ name: 'unidades_ha', ...decimalColumn() })
-  unidadesHa: number;
+  @Column({ name: 'cantidad_por_ha', ...decimalColumn() })
+  cantidadPorHa: number;
 
-  @Column({ name: 'costo_unidad', ...decimalColumn() })
-  costoUnidad: number;
+  @Column({ name: 'cantidad_total', ...decimalColumn() })
+  cantidadTotal: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

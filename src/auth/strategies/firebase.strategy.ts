@@ -64,18 +64,18 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
         : [];
 
       const isAsesor = roles.includes(Roles.ASESOR);
-      const isSysAdmin = roles.includes(Roles.SYS_ADMIN);
+      const isAdmin = roles.includes(Roles.SYS_ADMIN) || roles.includes(Roles.ASESOR_ADMIN);
 
       // El header x-empresa-id es la "empresa actual" elegida en el FE.
       // Sólo se honra si el usuario la tiene en su idEmpresas (asesor / productor)
-      // o si es sys-admin (puede pedir cualquier empresa).
+      // o si es admin (sys-admin / asesor-admin, puede pedir cualquier empresa).
       const requestedEmpresaId = req.headers['x-empresa-id'];
       let currentEmpresaId: number | null = null;
 
       if (requestedEmpresaId) {
         const reqId = Number(requestedEmpresaId);
         if (Number.isFinite(reqId) && reqId > 0) {
-          if (isSysAdmin) {
+          if (isAdmin) {
             currentEmpresaId = reqId;
           } else if (isAsesor || roles.includes(Roles.PRODUCTOR)) {
             if (idEmpresas.includes(reqId)) {
@@ -85,10 +85,10 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
         }
       }
 
-      // Fallback a la primera empresa del usuario: sólo para no-sys-admin.
-      // Para sys-admin, idEmpresas (si lo tiene poblado) se ignora: el sys-admin
+      // Fallback a la primera empresa del usuario: sólo para no-admin.
+      // Para admin, idEmpresas (si lo tiene poblado) se ignora: el admin
       // trabaja con la admin-toggle y nunca tiene "empresa actual" seleccionada.
-      if (!isSysAdmin && currentEmpresaId === null && idEmpresas.length > 0) {
+      if (!isAdmin && currentEmpresaId === null && idEmpresas.length > 0) {
         currentEmpresaId = idEmpresas[0];
       }
 

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateInsumoDto {
@@ -10,6 +10,15 @@ export class CreateInsumoDto {
   @IsString()
   @IsOptional()
   descripcion?: string;
+
+  @ApiProperty({ required: false, description: 'Precio unitario de referencia' })
+  @IsNumber()
+  @IsOptional()
+  precioUnitario?: number;
+
+  @ApiProperty()
+  @IsInt()
+  idCategoria: number;
 
   @ApiProperty({ required: false })
   @IsInt()

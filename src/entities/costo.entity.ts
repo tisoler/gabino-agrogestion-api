@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Empresa } from './empresa.entity';
+import { decimalColumn } from '../utils/decimal';
 
 @Entity('costo')
 export class Costo {
@@ -18,6 +19,13 @@ export class Costo {
   @ManyToOne(() => Empresa, { nullable: true })
   @JoinColumn({ name: 'id_empresa' })
   empresa: Empresa;
+
+  @Column({
+    name: 'precio_unitario',
+    nullable: true,
+    ...decimalColumn(),
+  })
+  precioUnitario: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -41,11 +41,11 @@ export class UsuariosService {
       throw new BadRequestException('Debe especificar al menos una empresa para agregar o quitar');
     }
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
     // Para no-sys-admin, las empresas a tocar deben estar en su idEmpresas
-    if (!isSysAdmin) {
+    if (!isAdmin) {
       for (const empresaId of [...add, ...remove]) {
         if (!userEmpresas.includes(empresaId)) {
           throw new ForbiddenException(
@@ -102,6 +102,93 @@ export class UsuariosService {
         : [],
       idEmpresas: newIdEmpresas,
     };
+  }
+
+  /**
+   * Lista todos los usuarios de Firestore aptos para ser asociados a una
+   * empresa. A diferencia de `findAllWithUsers` (que sólo devuelve usuarios
+   * con intersección en `idEmpresas`), aquí se listan TODOS los usuarios,
+   * sin importar si tienen empresas asignadas.
+   *
+   * Reglas:
+   *  - Se excluyen sys-admins (no pueden pertenecer a una empresa).
+   *  - Se excluyen usuarios sin rol resuelto.
+   *  - Un mismo usuario puede pertenecer a varias empresas: aparecerá como
+   *    candidato para cualquiera que no lo tenga ya asociado (eso lo filtra
+   *    el FE por empresa).
+   */
+  async findCandidatos(): Promise<UsuarioBasico[]> {
+    const db = admin.firestore();
+
+    // Resolver roles por idRol (FK → roles.nombre), tolerando schemas variados.
+    const rolesSnap = await db.collection('roles').get();
+    const roleById = new Map<string, string>();
+    for (const doc of rolesSnap.docs) {
+      const nombre = doc.data()?.nombre;
+      if (typeof nombre === 'string' && nombre) {
+        roleById.set(doc.id, nombre);
+      }
+    }
+
+    const usersSnap = await db.collection('usuarios').get();
+    const candidatos: { docId: string; data: any; roles: string[] }[] = [];
+
+    for (const doc of usersSnap.docs) {
+      const data = doc.data();
+      const roles = this.resolveRoles(data, roleById);
+      if (roles.length === 0 || roles.includes(Roles.SYS_ADMIN)) {
+        continue;
+      }
+      candidatos.push({ docId: doc.id, data, roles });
+    }
+
+    if (candidatos.length === 0) return [];
+
+    // Enriquecer con Firebase Auth: nombre/email pueden faltar en Firestore.
+    const authByUid = await this.fetchAuthRecords(candidatos.map((c) => c.docId));
+
+    return candidatos.map(({ docId, data, roles }) => {
+      const auth = authByUid.get(docId);
+      return {
+        uid: docId,
+        email: auth?.email ?? data?.email ?? null,
+        nombreUsuario:
+          data?.nombre ?? data?.nombreUsuario ?? auth?.displayName ?? auth?.email ?? docId,
+        photoURL: data?.picture ?? data?.photoURL ?? auth?.photoURL ?? null,
+        roles,
+        idEmpresas: this.resolveIdEmpresas(data),
+      };
+    });
+  }
+
+  private resolveRoles(data: any, roleById: Map<string, string>): string[] {
+    if (Array.isArray(data?.roles) && data.roles.length > 0) {
+      return data.roles.map((r: any) => String(r));
+    }
+    if (typeof data?.rol === 'string' && data.rol) {
+      return [data.rol];
+    }
+    if (data?.idRol && roleById.has(data.idRol)) {
+      return [roleById.get(data.idRol)!];
+    }
+    return [];
+  }
+
+  private resolveIdEmpresas(data: any): number[] {
+    if (Array.isArray(data?.idEmpresas)) {
+      return data.idEmpresas
+        .map((e: any) => Number(e))
+        .filter((n: number) => Number.isFinite(n) && n > 0);
+    }
+    if (data?.idEmpresas !== undefined && data?.idEmpresas !== null) {
+      const n = Number(data.idEmpresas);
+      return Number.isFinite(n) && n > 0 ? [n] : [];
+    }
+    if (data?.idEmpresa !== undefined && data?.idEmpresa !== null) {
+      const n = Number(data.idEmpresa);
+      return Number.isFinite(n) && n > 0 ? [n] : [];
+    }
+    return [];
   }
 
   private resolveCurrentIdEmpresas(data: any): number[] {

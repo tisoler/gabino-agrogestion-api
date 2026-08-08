@@ -25,7 +25,7 @@ export class EmpresasController {
 
   @Get('with-users')
   @Permissions('lectura:productor')
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
   @ApiOperation({
     summary: 'Listar empresas con sus usuarios (asesores y productores)',
     description:
@@ -52,7 +52,7 @@ export class EmpresasController {
 
   @Post()
   @Permissions('escritura:empresa')
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
   @ApiOperation({ summary: 'Crear una nueva empresa' })
   create(@Body() createEmpresaDto: CreateEmpresaDto, @Request() req) {
     return this.empresasService.create(createEmpresaDto, req.user);

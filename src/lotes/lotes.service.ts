@@ -16,32 +16,32 @@ export class LotesService {
   /**
    * Lista lotes visibles para el usuario.
    *
-   *  - sys-admin: ve todos los lotes (sin filtro de empresa). Si llega
-   *    `currentEmpresaId`, filtra a esa empresa concreta.
+   *  - sys-admin / asesor-admin: ve todos los lotes (sin filtro de empresa).
+   *    Si llega `currentEmpresaId`, filtra a esa empresa concreta.
    *  - asesor / productor: ve los lotes de las empresas en su `idEmpresas`.
    *    Si llega `currentEmpresaId` y está en su `idEmpresas`, filtra a esa.
    *    Si llega una empresa que NO está en su `idEmpresas`, devuelve [].
    *
    * No hay lotes "globales" (la columna `id_empresa` es NOT NULL), por lo
    * que no hay rama para "ver todos sin filtro de empresa" fuera de
-   * sys-admin.
+   * sys-admin / asesor-admin.
    */
   findAll(user: any, currentEmpresaId?: number) {
     const query = this.loteRepository.createQueryBuilder('lote');
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
     if (currentEmpresaId) {
       // Filtro por empresa específica
-      if (!isSysAdmin && !userEmpresas.includes(currentEmpresaId)) {
+      if (!isAdmin && !userEmpresas.includes(currentEmpresaId)) {
         return [];
       }
       query.andWhere('lote.id_empresa = :currentId', { currentId: currentEmpresaId });
       return query.getMany();
     }
 
-    // Sin filtro: sys-admin ve todo; el resto ve los de sus idEmpresas
-    if (isSysAdmin) {
+    // Sin filtro: admin ve todo; el resto ve los de sus idEmpresas
+    if (isAdmin) {
       return query.getMany();
     }
 
@@ -61,19 +61,24 @@ export class LotesService {
   }
 
   async create(createLoteDto: CreateLoteDto, user: any, currentEmpresaId?: number) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
     let idEmpresa: number;
-    if (isSysAdmin) {
+    if (isAdmin) {
       if (!createLoteDto.idEmpresa) {
         throw new BadRequestException('Debe indicar la empresa destino del lote');
       }
       idEmpresa = createLoteDto.idEmpresa;
     } else {
-      if (!currentEmpresaId) {
+      const target = createLoteDto.idEmpresa ?? currentEmpresaId;
+      if (!target) {
         throw new BadRequestException('El usuario no tiene una empresa actual seleccionada');
       }
-      idEmpresa = currentEmpresaId;
+      const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
+      if (!userEmpresas.includes(target)) {
+        throw new ForbiddenException('No tiene permisos para crear un lote en esa empresa');
+      }
+      idEmpresa = target;
     }
 
     const lote = this.loteRepository.create({
@@ -92,15 +97,15 @@ export class LotesService {
       throw new NotFoundException('Lote no encontrado');
     }
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin && !userEmpresas.includes(lote.idEmpresa)) {
+    if (!isAdmin && !userEmpresas.includes(lote.idEmpresa)) {
       throw new ForbiddenException('No tiene permisos para editar un lote de otra empresa');
     }
 
     if (updateLoteDto.idEmpresa && updateLoteDto.idEmpresa !== lote.idEmpresa) {
-      if (!isSysAdmin) {
+      if (!isAdmin) {
         throw new ForbiddenException('Solo el sys-admin puede cambiar la empresa de un lote');
       }
     }

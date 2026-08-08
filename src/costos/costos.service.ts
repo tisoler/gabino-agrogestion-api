@@ -14,12 +14,12 @@ export class CostosService {
     private costoRepository: Repository<Costo>,
   ) { }
 
-  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number) {
+  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number, soloActivos?: boolean, scope?: string) {
     const query = this.costoRepository.createQueryBuilder('costo');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isSysAdmin) {
+    if (isAdmin) {
       if (all && !currentEmpresaId) {
         if (companyIds) {
           const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
@@ -33,10 +33,26 @@ export class CostosService {
         query.andWhere('costo.id_empresa IS NULL');
       }
     } else {
-      if (!currentEmpresaId) {
+      if (scope === 'global') {
+        query.andWhere('costo.id_empresa IS NULL');
+      } else if (scope === 'empresa' && currentEmpresaId) {
+        query.andWhere('costo.id_empresa = :companyId', { companyId: currentEmpresaId });
+      } else if (all) {
+        const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
+        if (ids.length === 0) {
+          query.andWhere('costo.id_empresa IS NULL');
+        } else {
+          query.andWhere('(costo.id_empresa IS NULL OR costo.id_empresa IN (:...ids))', { ids });
+        }
+      } else if (currentEmpresaId) {
+        query.andWhere('costo.id_empresa = :currentId', { currentId: currentEmpresaId });
+      } else {
         return [];
       }
-      query.andWhere('(costo.id_empresa = :currentId OR costo.id_empresa IS NULL)', { currentId: currentEmpresaId });
+    }
+
+    if (soloActivos) {
+      query.andWhere('costo.activo = true');
     }
 
     return query.getMany();
@@ -47,10 +63,10 @@ export class CostosService {
   }
 
   async create(createCostoDto: CreateCostoDto, user: any, currentEmpresaId?: number) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
     let idEmpresa: number | null;
-    if (isSysAdmin) {
+    if (isAdmin) {
       idEmpresa = createCostoDto.idEmpresa ?? null;
     } else {
       if (!currentEmpresaId) {
@@ -80,10 +96,10 @@ export class CostosService {
       throw new NotFoundException('Costo no encontrado');
     }
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin) {
+    if (!isAdmin) {
       if (costo.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar un costo global');
       }
@@ -102,6 +118,14 @@ export class CostosService {
 
     if (updateCostoDto.descripcion !== undefined) {
       costo.descripcion = updateCostoDto.descripcion;
+    }
+
+    if (updateCostoDto.precioUnitario !== undefined) {
+      costo.precioUnitario = updateCostoDto.precioUnitario;
+    }
+
+    if (updateCostoDto.activo !== undefined) {
+      costo.activo = updateCostoDto.activo;
     }
 
     try {

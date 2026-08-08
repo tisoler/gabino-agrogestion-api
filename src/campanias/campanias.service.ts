@@ -91,7 +91,7 @@ export class CampaniasService {
    * insumos / costos) NO se incluyen en el listado.
    */
   async findAll(user: any, filters: FindCampaniasFilters = {}) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
     const qb = this.campaniaRepo
@@ -102,9 +102,9 @@ export class CampaniasService {
 
     if (filters.currentEmpresaId) {
       const id = Number(filters.currentEmpresaId);
-      if (!isSysAdmin && !userEmpresas.includes(id)) return [];
+      if (!isAdmin && !userEmpresas.includes(id)) return [];
       qb.andWhere('lote.id_empresa = :empresaId', { empresaId: id });
-    } else if (!isSysAdmin) {
+    } else if (!isAdmin) {
       if (userEmpresas.length === 0) return [];
       qb.andWhere('lote.id_empresa IN (:...ids)', { ids: userEmpresas });
     }
@@ -419,10 +419,10 @@ export class CampaniasService {
   }
 
   private async assertCampaniaAcceso(campania: Campania, user: any, accion: string) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (isSysAdmin) return;
+    if (isAdmin) return;
 
     const lote = campania.lote ?? (await this.loteRepo.findOne({ where: { id: campania.idLote } }));
     if (!lote) throw new NotFoundException('Lote de la campaña no encontrado');
@@ -432,10 +432,10 @@ export class CampaniasService {
   }
 
   private async assertLoteAcceso(lote: Lote, user: any, accion: string, currentEmpresaId?: number) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (isSysAdmin) return;
+    if (isAdmin) return;
     if (!userEmpresas.includes(lote.idEmpresa)) {
       throw new ForbiddenException(`No tiene permisos para ${accion} este lote`);
     }
@@ -448,9 +448,9 @@ export class CampaniasService {
     const cultivo = await this.cultivoRepo.findOne({ where: { id: idCultivo } });
     if (!cultivo) throw new BadRequestException('El cultivo indicado no existe');
     if (cultivo.idEmpresa !== null) {
-      const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
-      if (!isSysAdmin && !userEmpresas.includes(cultivo.idEmpresa)) {
+      if (!isAdmin && !userEmpresas.includes(cultivo.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para usar este cultivo');
       }
     }
@@ -463,9 +463,9 @@ export class CampaniasService {
       throw new BadRequestException('La variedad no pertenece al cultivo seleccionado');
     }
     if (variedad.idEmpresa !== null) {
-      const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
-      if (!isSysAdmin && !userEmpresas.includes(variedad.idEmpresa)) {
+      if (!isAdmin && !userEmpresas.includes(variedad.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para usar esta variedad');
       }
     }
@@ -483,9 +483,9 @@ export class CampaniasService {
       throw new ForbiddenException('La labor pertenece a otra empresa');
     }
     if (labor.idEmpresa !== null) {
-      const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
-      if (!isSysAdmin && !userEmpresas.includes(labor.idEmpresa)) {
+      if (!isAdmin && !userEmpresas.includes(labor.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para usar esta labor');
       }
     }
@@ -498,9 +498,9 @@ export class CampaniasService {
       throw new ForbiddenException('El insumo pertenece a otra empresa');
     }
     if (insumo.idEmpresa !== null) {
-      const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
-      if (!isSysAdmin && !userEmpresas.includes(insumo.idEmpresa)) {
+      if (!isAdmin && !userEmpresas.includes(insumo.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para usar este insumo');
       }
     }
@@ -513,9 +513,9 @@ export class CampaniasService {
       throw new ForbiddenException('El costo pertenece a otra empresa');
     }
     if (costo.idEmpresa !== null) {
-      const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
-      if (!isSysAdmin && !userEmpresas.includes(costo.idEmpresa)) {
+      if (!isAdmin && !userEmpresas.includes(costo.idEmpresa)) {
         throw new ForbiddenException('No tiene permisos para usar este costo');
       }
     }

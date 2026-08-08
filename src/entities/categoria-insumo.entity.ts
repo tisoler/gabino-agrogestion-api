@@ -1,8 +1,8 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Variedad } from './variedad.entity';
+import { Insumo } from './insumo.entity';
 
-@Entity('cultivo')
-export class Cultivo {
+@Entity('categoria_insumo')
+export class CategoriaInsumo {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -11,12 +11,6 @@ export class Cultivo {
 
   @Column({ nullable: true })
   descripcion: string;
-
-  @Column({ name: 'tipo_cosecha', type: 'varchar', length: 10, nullable: true })
-  tipoCosecha: string;
-
-  @Column({ name: 'id_empresa', nullable: true })
-  idEmpresa: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -27,6 +21,6 @@ export class Cultivo {
   @Column({ default: true })
   activo: boolean;
 
-  @OneToMany(() => Variedad, (variedad) => variedad.cultivo)
-  variedades: Variedad[];
+  @OneToMany(() => Insumo, (insumo) => insumo.categoria)
+  insumos: Insumo[];
 }

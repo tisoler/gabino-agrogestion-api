@@ -7,9 +7,11 @@ import { LaboresModule } from './labores/labores.module';
 import { InsumosModule } from './insumos/insumos.module';
 import { CostosModule } from './costos/costos.module';
 import { CultivosModule } from './cultivos/cultivos.module';
+import { CategoriasModule } from './categorias/categorias.module';
 import { LotesModule } from './lotes/lotes.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { CampaniasModule } from './campanias/campanias.module';
+import { PrescripcionesModule } from './prescripciones/prescripciones.module';
 
 import { Empresa } from './entities/empresa.entity';
 import { Labor } from './entities/labor.entity';
@@ -22,6 +24,9 @@ import { CampaniaCosto } from './entities/campania-costo.entity';
 import { Lote } from './entities/lote.entity';
 import { Cultivo } from './entities/cultivo.entity';
 import { Variedad } from './entities/variedad.entity';
+import { CategoriaInsumo } from './entities/categoria-insumo.entity';
+import { Prescripcion } from './entities/prescripcion.entity';
+import { PrescripcionInsumo } from './entities/prescripcion-insumo.entity';
 
 @Module({
   imports: [
@@ -49,6 +54,9 @@ import { Variedad } from './entities/variedad.entity';
           Lote,
           Cultivo,
           Variedad,
+          CategoriaInsumo,
+          Prescripcion,
+          PrescripcionInsumo,
         ],
         synchronize: false, // Migraciones manuales
         logging: true,
@@ -61,9 +69,11 @@ import { Variedad } from './entities/variedad.entity';
     InsumosModule,
     CostosModule,
     CultivosModule,
+    CategoriasModule,
     LotesModule,
     UsuariosModule,
     CampaniasModule,
+    PrescripcionesModule,
   ],
 })
 export class AppModule {}

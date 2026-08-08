@@ -19,13 +19,13 @@ export class CultivosService {
     private variedadRepository: Repository<Variedad>,
   ) { }
 
-  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number) {
+  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number, soloActivos?: boolean, scope?: string) {
     const query = this.cultivoRepository.createQueryBuilder('cultivo')
       .leftJoinAndSelect('cultivo.variedades', 'variedad');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isSysAdmin) {
+    if (isAdmin) {
       if (all) {
         if (companyIds) {
           const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
@@ -37,10 +37,26 @@ export class CultivosService {
         query.andWhere('cultivo.id_empresa IS NULL');
       }
     } else {
-      if (!currentEmpresaId) {
+      if (scope === 'global') {
+        query.andWhere('cultivo.id_empresa IS NULL');
+      } else if (scope === 'empresa' && currentEmpresaId) {
+        query.andWhere('cultivo.id_empresa = :companyId', { companyId: currentEmpresaId });
+      } else if (all) {
+        const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
+        if (ids.length === 0) {
+          query.andWhere('cultivo.id_empresa IS NULL');
+        } else {
+          query.andWhere('(cultivo.id_empresa IS NULL OR cultivo.id_empresa IN (:...ids))', { ids });
+        }
+      } else if (currentEmpresaId) {
+        query.andWhere('cultivo.id_empresa = :companyId2', { companyId2: currentEmpresaId });
+      } else {
         return [];
       }
-      query.andWhere('(cultivo.id_empresa = :currentId OR cultivo.id_empresa IS NULL)', { currentId: currentEmpresaId });
+    }
+
+    if (soloActivos) {
+      query.andWhere('cultivo.activo = true');
     }
 
     return query.getMany();
@@ -56,10 +72,10 @@ export class CultivosService {
   }
 
   async create(createCultivoDto: CreateCultivoDto, user: any, currentEmpresaId?: number) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
     let idEmpresa: number | null;
-    if (isSysAdmin) {
+    if (isAdmin) {
       idEmpresa = createCultivoDto.idEmpresa ?? null;
     } else {
       if (!currentEmpresaId) {
@@ -87,10 +103,10 @@ export class CultivosService {
     const cultivo = await this.cultivoRepository.findOne({ where: { id } });
     if (!cultivo) throw new NotFoundException('Cultivo no encontrado');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin) {
+    if (!isAdmin) {
       if (cultivo.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar un cultivo global');
       }
@@ -111,6 +127,14 @@ export class CultivosService {
       cultivo.descripcion = updateCultivoDto.descripcion;
     }
 
+    if (updateCultivoDto.tipoCosecha !== undefined) {
+      cultivo.tipoCosecha = updateCultivoDto.tipoCosecha;
+    }
+
+    if (updateCultivoDto.activo !== undefined) {
+      cultivo.activo = updateCultivoDto.activo;
+    }
+
     try {
       return await this.cultivoRepository.save(cultivo);
     } catch (e) {
@@ -122,10 +146,10 @@ export class CultivosService {
     const cultivo = await this.cultivoRepository.findOne({ where: { id: createVariedadDto.idCultivo } });
     if (!cultivo) throw new NotFoundException('Cultivo no encontrado');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin && cultivo.idEmpresa !== null && !userEmpresas.includes(cultivo.idEmpresa)) {
+    if (!isAdmin && cultivo.idEmpresa !== null && !userEmpresas.includes(cultivo.idEmpresa)) {
       throw new ForbiddenException('No tiene permisos para agregar una variedad a este cultivo');
     }
 
@@ -142,10 +166,10 @@ export class CultivosService {
     const variedad = await this.variedadRepository.findOne({ where: { id } });
     if (!variedad) throw new NotFoundException('Variedad no encontrada');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin) {
+    if (!isAdmin) {
       if (variedad.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar una variedad global');
       }

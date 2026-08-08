@@ -29,14 +29,19 @@ export class CultivosController {
   @ApiQuery({ name: 'all', required: false, type: Boolean })
   @ApiQuery({ name: 'companyIds', required: false, type: String })
   @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number })
+  @ApiQuery({ name: 'scope', required: false, type: String, description: 'global | empresa (para no-admin)' })
+  @ApiQuery({ name: 'soloActivos', required: false, type: Boolean, description: 'Si es true, filtra solo ítems activos' })
   findAll(
     @Request() req,
     @Query('all') all?: string,
     @Query('companyIds') companyIds?: string,
-    @Query('currentEmpresaId') currentEmpresaId?: number
+    @Query('currentEmpresaId') currentEmpresaId?: number,
+    @Query('soloActivos') soloActivos?: string,
+    @Query('scope') scope?: string
   ) {
     const showAll = all === 'true';
-    return this.cultivosService.findAll(req.user, showAll, companyIds, currentEmpresaId);
+    const onlyActive = soloActivos === 'true';
+    return this.cultivosService.findAll(req.user, showAll, companyIds, currentEmpresaId, onlyActive, scope);
   }
 
   @Get(':id')

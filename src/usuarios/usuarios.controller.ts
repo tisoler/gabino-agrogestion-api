@@ -1,4 +1,4 @@
-import { Controller, Patch, Param, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { UsuariosService } from './usuarios.service';
 import { UpdateUserEmpresasDto } from './dto/update-user-empresas.dto';
@@ -17,9 +17,24 @@ import { Roles as RolesConst } from '../constantes';
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
+  @Get('candidatos')
+  @Permissions('escritura:empresa')
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @ApiOperation({
+    summary: 'Listar usuarios candidatos para asociar a empresas',
+    description:
+      'Devuelve todos los usuarios de Firestore con cualquier rol excepto sys-admin, ' +
+      'sin importar si tienen empresas asignadas. Alimenta los pickers de "agregar usuario" ' +
+      'tanto en la edición de empresas como en el alta de una nueva. El FE excluye al usuario ' +
+      'en sesión y a los ya vinculados a la empresa.',
+  })
+  findCandidatos(): Promise<UsuarioBasico[]> {
+    return this.usuariosService.findCandidatos();
+  }
+
   @Patch(':uid/empresas')
   @Permissions('escritura:empresa')
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
   @ApiOperation({
     summary: 'Asociar / desasociar empresas a un usuario',
     description:

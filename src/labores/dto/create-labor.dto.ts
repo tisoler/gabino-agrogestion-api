@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateLaborDto {
@@ -10,6 +10,11 @@ export class CreateLaborDto {
   @IsString()
   @IsOptional()
   descripcion?: string;
+
+  @ApiProperty({ required: false, description: 'Precio unitario de referencia' })
+  @IsNumber()
+  @IsOptional()
+  precioUnitario?: number;
 
   @ApiProperty({ required: false })
   @IsInt()

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Insumo } from '../entities/insumo.entity';
+import { CategoriaInsumo } from '../entities/categoria-insumo.entity';
 import { CreateInsumoDto } from './dto/create-insumo.dto';
 import { UpdateInsumoDto } from './dto/update-insumo.dto';
 import { Roles } from 'src/constantes';
@@ -12,14 +13,17 @@ export class InsumosService {
   constructor(
     @InjectRepository(Insumo)
     private insumoRepository: Repository<Insumo>,
+    @InjectRepository(CategoriaInsumo)
+    private categoriaRepository: Repository<CategoriaInsumo>,
   ) { }
 
-  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number) {
-    const query = this.insumoRepository.createQueryBuilder('insumo');
+  findAll(user: any, all?: boolean, companyIds?: string, currentEmpresaId?: number, soloActivos?: boolean, scope?: string) {
+    const query = this.insumoRepository.createQueryBuilder('insumo')
+      .leftJoinAndSelect('insumo.categoria', 'categoria');
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isSysAdmin) {
+    if (isAdmin) {
       if (all && !currentEmpresaId) {
         if (companyIds) {
           const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
@@ -33,24 +37,51 @@ export class InsumosService {
         query.andWhere('insumo.id_empresa IS NULL');
       }
     } else {
-      if (!currentEmpresaId) {
+      if (scope === 'global') {
+        query.andWhere('insumo.id_empresa IS NULL');
+      } else if (scope === 'empresa' && currentEmpresaId) {
+        query.andWhere('insumo.id_empresa = :companyId', { companyId: currentEmpresaId });
+      } else if (all) {
+        const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
+        if (ids.length === 0) {
+          query.andWhere('insumo.id_empresa IS NULL');
+        } else {
+          query.andWhere('(insumo.id_empresa IS NULL OR insumo.id_empresa IN (:...ids))', { ids });
+        }
+      } else if (currentEmpresaId) {
+        query.andWhere('insumo.id_empresa = :currentId', { currentId: currentEmpresaId });
+      } else {
         return [];
       }
-      query.andWhere('(insumo.id_empresa = :currentId OR insumo.id_empresa IS NULL)', { currentId: currentEmpresaId });
+    }
+
+    if (soloActivos) {
+      query.andWhere('insumo.activo = true');
     }
 
     return query.getMany();
   }
 
   findOne(id: number) {
-    return this.insumoRepository.findOne({ where: { id, activo: true } });
+    return this.insumoRepository.findOne({
+      where: { id, activo: true },
+      relations: ['categoria'],
+    });
+  }
+
+  async assertCategoriaExiste(idCategoria: number) {
+    if (idCategoria === undefined || idCategoria === null) return;
+    const categoria = await this.categoriaRepository.findOne({ where: { id: idCategoria } });
+    if (!categoria) {
+      throw new BadRequestException('La categoría de insumo indicada no existe');
+    }
   }
 
   async create(createInsumoDto: CreateInsumoDto, user: any, currentEmpresaId?: number) {
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
     let idEmpresa: number | null;
-    if (isSysAdmin) {
+    if (isAdmin) {
       idEmpresa = createInsumoDto.idEmpresa ?? null;
     } else {
       if (!currentEmpresaId) {
@@ -58,6 +89,8 @@ export class InsumosService {
       }
       idEmpresa = createInsumoDto.idEmpresa ?? currentEmpresaId;
     }
+
+    await this.assertCategoriaExiste(createInsumoDto.idCategoria);
 
     const nombre = normalizeNombre(createInsumoDto.nombre);
     await assertNombreUnico(this.insumoRepository, nombre, idEmpresa);
@@ -80,10 +113,10 @@ export class InsumosService {
       throw new NotFoundException('Insumo no encontrado');
     }
 
-    const isSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
-    if (!isSysAdmin) {
+    if (!isAdmin) {
       if (insumo.idEmpresa === null) {
         throw new ForbiddenException('No tiene permisos para editar un insumo global');
       }
@@ -102,6 +135,19 @@ export class InsumosService {
 
     if (updateInsumoDto.descripcion !== undefined) {
       insumo.descripcion = updateInsumoDto.descripcion;
+    }
+
+    if (updateInsumoDto.idCategoria !== undefined) {
+      await this.assertCategoriaExiste(updateInsumoDto.idCategoria);
+      insumo.idCategoria = updateInsumoDto.idCategoria;
+    }
+
+    if (updateInsumoDto.precioUnitario !== undefined) {
+      insumo.precioUnitario = updateInsumoDto.precioUnitario;
+    }
+
+    if (updateInsumoDto.activo !== undefined) {
+      insumo.activo = updateInsumoDto.activo;
     }
 
     try {
