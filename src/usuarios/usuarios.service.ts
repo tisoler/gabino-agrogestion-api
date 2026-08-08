@@ -44,6 +44,11 @@ export class UsuariosService {
     const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
 
+    // Un usuario no-admin (asesor) no puede desasociarse a sí mismo de una empresa.
+    if (!isAdmin && uid === user.id && remove.length > 0) {
+      throw new ForbiddenException('No puede desasociarse a sí mismo de una empresa');
+    }
+
     // Para no-sys-admin, las empresas a tocar deben estar en su idEmpresas
     if (!isAdmin) {
       for (const empresaId of [...add, ...remove]) {
@@ -71,6 +76,22 @@ export class UsuariosService {
       throw new NotFoundException(`Usuario ${uid} no encontrado en Firestore`);
     }
     const currentData = userDoc.data() || {};
+
+    // Un sys-admin nunca puede ser asociado a una empresa.
+    if (add.length > 0) {
+      const rolesSnap = await db.collection('roles').get();
+      const roleById = new Map<string, string>();
+      for (const doc of rolesSnap.docs) {
+        const nombre = doc.data()?.nombre;
+        if (typeof nombre === 'string' && nombre) {
+          roleById.set(doc.id, nombre);
+        }
+      }
+      const targetRoles = this.resolveRoles(currentData, roleById);
+      if (targetRoles.includes(Roles.SYS_ADMIN)) {
+        throw new ForbiddenException('Los sys-admins no pueden ser asociados a una empresa');
+      }
+    }
 
     // Resolver idEmpresas actual (array, escalar o faltante) → number[]
     const idEmpresas = this.resolveCurrentIdEmpresas(currentData);

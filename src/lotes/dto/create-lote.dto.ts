@@ -15,6 +15,12 @@ export class CreateLoteDto {
   @MaxLength(500)
   descripcion?: string;
 
+  @ApiProperty({ description: 'Campo: texto de agrupación de lotes (requerido)' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(200)
+  campo: string;
+
   @ApiPropertyOptional({ description: 'Latitud (WGS84, entre -90 y 90)' })
   @IsOptional()
   @Type(() => Number)

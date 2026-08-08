@@ -19,37 +19,23 @@ export class LaboresService {
 
     const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isAdmin) {
-      if (all && !currentEmpresaId) {
-        // Sin empresa destino: respeta el filtro por companyIds del toggle
-        if (companyIds) {
-          const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-          if (ids.length > 0) {
-            query.andWhere('labor.id_empresa IN (:...ids)', { ids });
-          }
-        }
-      } else if (currentEmpresaId) {
-        // Para cualquier usuario, si hay empresa destino, devolver globales + los de esa empresa
-        query.andWhere('(labor.id_empresa IS NULL OR labor.id_empresa = :currentId)', { currentId: currentEmpresaId });
+    // Filtros unificados para todos los roles (sys-admin, asesor-admin, asesor, productor):
+    if (scope === 'global') {
+      query.andWhere('labor.id_empresa IS NULL');
+    } else if (scope === 'empresa') {
+      if (currentEmpresaId) {
+        query.andWhere('labor.id_empresa = :companyId', { companyId: currentEmpresaId });
       } else {
-        query.andWhere('labor.id_empresa IS NULL');
+        return [];
       }
     } else {
-      if (scope === 'global') {
-        query.andWhere('labor.id_empresa IS NULL');
-      } else if (scope === 'empresa' && currentEmpresaId) {
-        query.andWhere('labor.id_empresa = :companyId', { companyId: currentEmpresaId });
-      } else if (all) {
+      if (!isAdmin) {
         const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
         if (ids.length === 0) {
           query.andWhere('labor.id_empresa IS NULL');
         } else {
           query.andWhere('(labor.id_empresa IS NULL OR labor.id_empresa IN (:...ids))', { ids });
         }
-      } else if (currentEmpresaId) {
-        query.andWhere('labor.id_empresa = :currentId', { currentId: currentEmpresaId });
-      } else {
-        return [];
       }
     }
 

@@ -23,35 +23,23 @@ export class InsumosService {
 
     const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isAdmin) {
-      if (all && !currentEmpresaId) {
-        if (companyIds) {
-          const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-          if (ids.length > 0) {
-            query.andWhere('insumo.id_empresa IN (:...ids)', { ids });
-          }
-        }
-      } else if (currentEmpresaId) {
-        query.andWhere('(insumo.id_empresa IS NULL OR insumo.id_empresa = :currentId)', { currentId: currentEmpresaId });
+    // Filtros unificados para todos los roles (sys-admin, asesor-admin, asesor, productor):
+    if (scope === 'global') {
+      query.andWhere('insumo.id_empresa IS NULL');
+    } else if (scope === 'empresa') {
+      if (currentEmpresaId) {
+        query.andWhere('insumo.id_empresa = :companyId', { companyId: currentEmpresaId });
       } else {
-        query.andWhere('insumo.id_empresa IS NULL');
+        return [];
       }
     } else {
-      if (scope === 'global') {
-        query.andWhere('insumo.id_empresa IS NULL');
-      } else if (scope === 'empresa' && currentEmpresaId) {
-        query.andWhere('insumo.id_empresa = :companyId', { companyId: currentEmpresaId });
-      } else if (all) {
+      if (!isAdmin) {
         const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
         if (ids.length === 0) {
           query.andWhere('insumo.id_empresa IS NULL');
         } else {
           query.andWhere('(insumo.id_empresa IS NULL OR insumo.id_empresa IN (:...ids))', { ids });
         }
-      } else if (currentEmpresaId) {
-        query.andWhere('insumo.id_empresa = :currentId', { currentId: currentEmpresaId });
-      } else {
-        return [];
       }
     }
 

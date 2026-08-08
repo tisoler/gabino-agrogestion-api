@@ -9,8 +9,10 @@ import {
   Post,
   Query,
   Request,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -18,6 +20,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CampaniasService } from './campanias.service';
+import { buildCampaniaXls } from './campanias.export';
 import { CreateCampaniaDto } from './dto/create-campania.dto';
 import { UpdateCampaniaDto } from './dto/update-campania.dto';
 import {
@@ -87,6 +90,32 @@ export class CampaniasController {
   @ApiOperation({ summary: 'Obtener una campaña con todos sus detalles' })
   findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
     return this.service.findOne(id, req.user);
+  }
+
+  @Get(':id/export')
+  @Permissions('lectura:campania')
+  @ApiOperation({ summary: 'Exportar la campaña a archivo .xls' })
+  async exportXls(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const campania = await this.service.findOne(id, req.user);
+    const buffer = buildCampaniaXls(campania);
+
+    const nombreArchivo =
+      (campania?.lote?.descripcion || campania?.nombre || `campania-${id}`)
+        .replace(/[\\/:*?"<>|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim() + '.xls';
+
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="export-${nombreArchivo}"`,
+    );
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
   }
 
   @Patch(':id')

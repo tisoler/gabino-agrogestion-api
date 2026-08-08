@@ -20,6 +20,13 @@ export class Lote {
   @Column({ nullable: true })
   descripcion: string;
 
+  /**
+   * Campo: texto de agrupación de lotes (p.ej. establecimiento o parcela).
+   * Requerido.
+   */
+  @Column({ type: 'varchar', length: 200 })
+  campo: string;
+
   @Column('decimal', { precision: 10, scale: 8, nullable: true })
   lat: number;
 

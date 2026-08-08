@@ -83,6 +83,7 @@ export class LotesService {
 
     const lote = this.loteRepository.create({
       descripcion: createLoteDto.descripcion,
+      campo: createLoteDto.campo,
       idUsuario: createLoteDto.idUsuario,
       lat: createLoteDto.lat,
       long: createLoteDto.long,

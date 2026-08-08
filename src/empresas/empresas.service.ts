@@ -58,7 +58,25 @@ export class EmpresasService {
       throw new BadRequestException('No tiene permisos para crear empresas');
     }
     const empresa = this.empresaRepository.create(createEmpresaDto);
-    return this.empresaRepository.save(empresa);
+    const saved = await this.empresaRepository.save(empresa);
+
+    // Al crear una empresa, el asesor queda asociado automáticamente a ella:
+    // se agrega el id a su `idEmpresas` en Firestore para que pueda verla y
+    // gestionarla. Los admins (sys-admin / asesor-admin) ya ven todas.
+    if (!isAdmin && isAsesor && user.id) {
+      try {
+        const db = admin.firestore();
+        const userRef = db.collection('usuarios').doc(user.id);
+        const userDoc = await userRef.get();
+        const current = userDoc.exists ? this.resolveUserEmpresas(userDoc.data() || {}) : [];
+        const next = Array.from(new Set([...current, saved.id])).sort((a, b) => a - b);
+        await userRef.set({ idEmpresas: next }, { merge: true });
+      } catch (err) {
+        console.warn('[empresas] No se pudo auto-asociar al creador de la empresa:', err);
+      }
+    }
+
+    return saved;
   }
 
   async findAllWithUsers(user: any): Promise<EmpresaConUsuarios[]> {
@@ -166,7 +184,13 @@ export class EmpresasService {
       const data = doc.data();
 
       const roles = this.resolveUserRoles(data, roleById);
-      if (!roles.includes(Roles.ASESOR) && !roles.includes(Roles.PRODUCTOR)) {
+      // Incluye asesor, asesor-admin y productor: el asesor-admin cumple además
+      // el rol de asesor (vinculado a empresas) aunque sea admin para ver/editar todo.
+      if (
+        !roles.includes(Roles.ASESOR) &&
+        !roles.includes(Roles.ASESOR_ADMIN) &&
+        !roles.includes(Roles.PRODUCTOR)
+      ) {
         continue;
       }
 

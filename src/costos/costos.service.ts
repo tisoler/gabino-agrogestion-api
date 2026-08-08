@@ -19,35 +19,28 @@ export class CostosService {
 
     const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
 
-    if (isAdmin) {
-      if (all && !currentEmpresaId) {
-        if (companyIds) {
-          const ids = companyIds.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-          if (ids.length > 0) {
-            query.andWhere('costo.id_empresa IN (:...ids)', { ids });
-          }
-        }
-      } else if (currentEmpresaId) {
-        query.andWhere('(costo.id_empresa IS NULL OR costo.id_empresa = :currentId)', { currentId: currentEmpresaId });
+    // Filtros unificados para todos los roles (sys-admin, asesor-admin, asesor, productor):
+    //  - global              -> solo ítems globales (id_empresa NULL)
+    //  - empresa + empresa   -> solo ítems de esa empresa
+    //  - empresa (sin valor) -> lista vacía
+    //  - todas (default)     -> ítems globales + los de las empresas del usuario
+    //                          (para admins, que ven todas las empresas: todos)
+    if (scope === 'global') {
+      query.andWhere('costo.id_empresa IS NULL');
+    } else if (scope === 'empresa') {
+      if (currentEmpresaId) {
+        query.andWhere('costo.id_empresa = :companyId', { companyId: currentEmpresaId });
       } else {
-        query.andWhere('costo.id_empresa IS NULL');
+        return [];
       }
     } else {
-      if (scope === 'global') {
-        query.andWhere('costo.id_empresa IS NULL');
-      } else if (scope === 'empresa' && currentEmpresaId) {
-        query.andWhere('costo.id_empresa = :companyId', { companyId: currentEmpresaId });
-      } else if (all) {
+      if (!isAdmin) {
         const ids: number[] = (user.idEmpresas || []).map((e: any) => Number(e)).filter((n) => Number.isFinite(n) && n > 0);
         if (ids.length === 0) {
           query.andWhere('costo.id_empresa IS NULL');
         } else {
           query.andWhere('(costo.id_empresa IS NULL OR costo.id_empresa IN (:...ids))', { ids });
         }
-      } else if (currentEmpresaId) {
-        query.andWhere('costo.id_empresa = :currentId', { currentId: currentEmpresaId });
-      } else {
-        return [];
       }
     }
 
