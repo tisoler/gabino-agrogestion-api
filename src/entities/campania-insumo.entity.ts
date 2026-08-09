@@ -36,6 +36,9 @@ export class CampaniaInsumo {
   @Column({ name: 'costo_unidad', ...decimalColumn() })
   costoUnidad: number;
 
+  @Column({ name: 'superficie_aplicada', ...decimalColumn() })
+  superficieAplicada: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

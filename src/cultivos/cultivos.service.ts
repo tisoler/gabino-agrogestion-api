@@ -105,6 +105,24 @@ export class CultivosService {
       }
     }
 
+    // Empresa destino (alcance). Un no-admin sólo puede mover entre sus propias
+    // empresas (nunca a global).
+    if (updateCultivoDto.idEmpresa !== undefined && updateCultivoDto.idEmpresa !== cultivo.idEmpresa) {
+      const nuevaEmpresa = updateCultivoDto.idEmpresa;
+      if (!isAdmin) {
+        if (nuevaEmpresa === null || !userEmpresas.includes(nuevaEmpresa)) {
+          throw new ForbiddenException('No tiene permisos para cambiar el alcance a esa empresa');
+        }
+      }
+      await assertNombreUnico(
+        this.cultivoRepository,
+        normalizeNombre(updateCultivoDto.nombre ?? cultivo.nombre),
+        nuevaEmpresa,
+        id,
+      );
+      cultivo.idEmpresa = nuevaEmpresa;
+    }
+
     if (updateCultivoDto.nombre !== undefined) {
       const nuevoNombre = normalizeNombre(updateCultivoDto.nombre);
       if (nuevoNombre !== cultivo.nombre) {

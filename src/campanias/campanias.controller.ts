@@ -58,8 +58,7 @@ export class CampaniasController {
   @Permissions('lectura:campania')
   @ApiOperation({ summary: 'Listar campañas con filtros' })
   @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number })
-  @ApiQuery({ name: 'anioDesde', required: false, type: Number })
-  @ApiQuery({ name: 'anioHasta', required: false, type: Number })
+  @ApiQuery({ name: 'campanias', required: false, description: 'Períodos separados por coma (ej: 25/26,26/27)' })
   @ApiQuery({ name: 'nombre', required: false, type: String })
   @ApiQuery({ name: 'idCultivo', required: false, type: Number })
   @ApiQuery({ name: 'idVariedad', required: false, type: Number })
@@ -67,8 +66,7 @@ export class CampaniasController {
   findAll(
     @Request() req,
     @Query('currentEmpresaId') currentEmpresaId?: string,
-    @Query('anioDesde') anioDesde?: string,
-    @Query('anioHasta') anioHasta?: string,
+    @Query('campanias') campanias?: string,
     @Query('nombre') nombre?: string,
     @Query('idCultivo') idCultivo?: string,
     @Query('idVariedad') idVariedad?: string,
@@ -76,8 +74,7 @@ export class CampaniasController {
   ) {
     return this.service.findAll(req.user, {
       currentEmpresaId: currentEmpresaId ? Number(currentEmpresaId) : undefined,
-      anioDesde: anioDesde ? Number(anioDesde) : undefined,
-      anioHasta: anioHasta ? Number(anioHasta) : undefined,
+      campanias: campanias ? campanias.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
       nombre: nombre || undefined,
       idCultivo: idCultivo ? Number(idCultivo) : undefined,
       idVariedad: idVariedad ? Number(idVariedad) : undefined,

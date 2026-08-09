@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsNumber, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCostoDto {
@@ -15,6 +15,12 @@ export class CreateCostoDto {
   @IsNumber()
   @IsOptional()
   precioUnitario?: number;
+
+  @ApiProperty({ required: false, description: 'Unidad de medida del precio', enum: ['ton', 'kg', 'lt', 'unidad', 'ha', 'hr'] })
+  @IsString()
+  @IsOptional()
+  @IsIn(['ton', 'kg', 'lt', 'unidad', 'ha', 'hr'])
+  unidad?: string;
 
   @ApiProperty({ required: false })
   @IsInt()

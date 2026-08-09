@@ -101,6 +101,22 @@ export class CostosService {
       }
     }
 
+    if (updateCostoDto.idEmpresa !== undefined && updateCostoDto.idEmpresa !== costo.idEmpresa) {
+      const nuevaEmpresa = updateCostoDto.idEmpresa;
+      if (!isAdmin) {
+        if (nuevaEmpresa === null || !userEmpresas.includes(nuevaEmpresa)) {
+          throw new ForbiddenException('No tiene permisos para cambiar el alcance a esa empresa');
+        }
+      }
+      await assertNombreUnico(
+        this.costoRepository,
+        normalizeNombre(updateCostoDto.nombre ?? costo.nombre),
+        nuevaEmpresa,
+        id,
+      );
+      costo.idEmpresa = nuevaEmpresa;
+    }
+
     if (updateCostoDto.nombre !== undefined) {
       const nuevoNombre = normalizeNombre(updateCostoDto.nombre);
       if (nuevoNombre !== costo.nombre) {
@@ -115,6 +131,10 @@ export class CostosService {
 
     if (updateCostoDto.precioUnitario !== undefined) {
       costo.precioUnitario = updateCostoDto.precioUnitario;
+    }
+
+    if (updateCostoDto.unidad !== undefined) {
+      costo.unidad = updateCostoDto.unidad;
     }
 
     if (updateCostoDto.activo !== undefined) {

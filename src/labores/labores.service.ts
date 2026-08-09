@@ -96,6 +96,22 @@ export class LaboresService {
       }
     }
 
+    if (updateLaborDto.idEmpresa !== undefined && updateLaborDto.idEmpresa !== labor.idEmpresa) {
+      const nuevaEmpresa = updateLaborDto.idEmpresa;
+      if (!isAdmin) {
+        if (nuevaEmpresa === null || !userEmpresas.includes(nuevaEmpresa)) {
+          throw new ForbiddenException('No tiene permisos para cambiar el alcance a esa empresa');
+        }
+      }
+      await assertNombreUnico(
+        this.laborRepository,
+        normalizeNombre(updateLaborDto.nombre ?? labor.nombre),
+        nuevaEmpresa,
+        id,
+      );
+      labor.idEmpresa = nuevaEmpresa;
+    }
+
     if (updateLaborDto.nombre !== undefined) {
       const nuevoNombre = normalizeNombre(updateLaborDto.nombre);
       if (nuevoNombre !== labor.nombre) {

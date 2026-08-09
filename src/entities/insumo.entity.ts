@@ -35,6 +35,9 @@ export class Insumo {
   })
   precioUnitario: number | null;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  unidad: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

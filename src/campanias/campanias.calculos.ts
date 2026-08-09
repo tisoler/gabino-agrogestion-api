@@ -12,6 +12,7 @@ export interface CampaniaInsumoCalc {
   idInsumo: number;
   unidadesHa: number | string | null;
   costoUnidad: number | string | null;
+  superficieAplicada?: number | string | null;
 }
 
 export interface CampaniaCostoCalc {
@@ -86,9 +87,10 @@ export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
     return acc + (num(l.costoLaborHa) * num(l.superficieLaboreada)) / supSembrada;
   }, 0);
 
-  const costoTotalInsumosHa = (c.insumos || []).reduce(
-    (acc, i) => acc + num(i.unidadesHa) * num(i.costoUnidad), 0
-  );
+  const costoTotalInsumosHa = (c.insumos || []).reduce((acc, i) => {
+    if (supSembrada <= 0) return acc;
+    return acc + (num(i.unidadesHa) * num(i.costoUnidad) * num(i.superficieAplicada)) / supSembrada;
+  }, 0);
   const costoTotalCostosHa = (c.costos || []).reduce(
     (acc, k) => acc + num(k.unidadesHa) * num(k.costoUnidad), 0
   );

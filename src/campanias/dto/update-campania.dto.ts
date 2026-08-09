@@ -5,8 +5,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 export class UpdateCampaniaDto {
@@ -16,19 +16,11 @@ export class UpdateCampaniaDto {
   @MaxLength(255)
   nombre?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Período de la campaña (ej: 25/26)' })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1900)
-  anioDesde?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1900)
-  anioHasta?: number;
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}$/)
+  campania?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

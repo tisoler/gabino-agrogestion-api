@@ -23,11 +23,12 @@ export class Campania {
   @Column()
   nombre: string;
 
-  @Column({ name: 'anio_desde' })
-  anioDesde: number;
-
-  @Column({ name: 'anio_hasta' })
-  anioHasta: number;
+  /**
+   * Período de la campaña (ej: "25/26"). Precargado en el FE con los períodos
+   * válidos (desde 25/26 hasta el período actual).
+   */
+  @Column({ type: 'varchar', length: 7 })
+  campania: string;
 
   @Column({ name: 'id_lote' })
   idLote: number;

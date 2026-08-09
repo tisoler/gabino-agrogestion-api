@@ -38,6 +38,11 @@ export class CreateCampaniaDetalleInsumoDto {
   @Type(() => Number)
   @IsNumber()
   costoUnidad: number;
+
+  @ApiProperty({ description: 'Superficie aplicada (ha)' })
+  @Type(() => Number)
+  @IsNumber()
+  superficieAplicada: number;
 }
 
 export class CreateCampaniaDetalleCostoDto {

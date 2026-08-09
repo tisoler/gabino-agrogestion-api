@@ -1,17 +1,14 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { Lote } from './lote.entity';
 import { Empresa } from './empresa.entity';
-import { decimalColumn } from '../utils/decimal';
 
-@Entity('costo')
-export class Costo {
+@Entity('campo')
+export class Campo {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
   nombre: string;
-
-  @Column({ nullable: true })
-  descripcion: string;
 
   @Column({ name: 'id_empresa', nullable: true })
   idEmpresa: number;
@@ -20,15 +17,8 @@ export class Costo {
   @JoinColumn({ name: 'id_empresa' })
   empresa: Empresa;
 
-  @Column({
-    name: 'precio_unitario',
-    nullable: true,
-    ...decimalColumn(),
-  })
-  precioUnitario: number | null;
-
-  @Column({ type: 'varchar', length: 20, nullable: true })
-  unidad: string | null;
+  @Column({ nullable: true })
+  descripcion: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -38,4 +28,7 @@ export class Costo {
 
   @Column({ default: true })
   activo: boolean;
+
+  @OneToMany(() => Lote, (lote) => lote.campo)
+  lotes: Lote[];
 }

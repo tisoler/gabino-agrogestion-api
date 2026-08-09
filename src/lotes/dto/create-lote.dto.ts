@@ -9,17 +9,29 @@ export class CreateLoteDto {
   @MaxLength(128)
   idUsuario: string;
 
+  @ApiPropertyOptional({ description: 'Nombre del dueño del lote (denormalizado)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  nombreUsuario?: string;
+
+  @ApiPropertyOptional({ description: 'Email del dueño del lote (denormalizado)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  emailUsuario?: string;
+
   @ApiPropertyOptional({ description: 'Descripción o nombre del lote' })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   descripcion?: string;
 
-  @ApiProperty({ description: 'Campo: texto de agrupación de lotes (requerido)' })
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(200)
-  campo: string;
+  @ApiPropertyOptional({ description: 'ID del campo del lote (tabla "campo")' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  idCampo?: number;
 
   @ApiPropertyOptional({ description: 'Latitud (WGS84, entre -90 y 90)' })
   @IsOptional()

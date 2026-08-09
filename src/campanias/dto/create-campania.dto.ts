@@ -6,8 +6,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 export class CreateCampaniaDto {
@@ -17,22 +17,21 @@ export class CreateCampaniaDto {
   @MaxLength(255)
   nombre: string;
 
-  @ApiProperty({ description: 'Año de inicio de la campaña (>= 1900)' })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1900)
-  anioDesde: number;
-
-  @ApiProperty({ description: 'Año de fin de la campaña (>= anioDesde)' })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1900)
-  anioHasta: number;
+  @ApiProperty({ description: 'Período de la campaña (ej: 25/26)', example: '25/26' })
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}$/)
+  campania: string;
 
   @ApiProperty({ description: 'ID del lote sobre el que se carga la campaña' })
   @Type(() => Number)
   @IsInt()
   idLote: number;
+
+  @ApiPropertyOptional({ description: 'ID del productor (empresa) destino de la campaña' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idEmpresa?: number;
 
   @ApiProperty({ description: 'ID del cultivo' })
   @Type(() => Number)

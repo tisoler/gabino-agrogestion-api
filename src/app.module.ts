@@ -8,6 +8,7 @@ import { InsumosModule } from './insumos/insumos.module';
 import { CostosModule } from './costos/costos.module';
 import { CultivosModule } from './cultivos/cultivos.module';
 import { CategoriasModule } from './categorias/categorias.module';
+import { CamposModule } from './campos/campos.module';
 import { LotesModule } from './lotes/lotes.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { CampaniasModule } from './campanias/campanias.module';
@@ -25,6 +26,7 @@ import { Lote } from './entities/lote.entity';
 import { Cultivo } from './entities/cultivo.entity';
 import { Variedad } from './entities/variedad.entity';
 import { CategoriaInsumo } from './entities/categoria-insumo.entity';
+import { Campo } from './entities/campo.entity';
 import { Prescripcion } from './entities/prescripcion.entity';
 import { PrescripcionInsumo } from './entities/prescripcion-insumo.entity';
 
@@ -55,6 +57,7 @@ import { PrescripcionInsumo } from './entities/prescripcion-insumo.entity';
           Cultivo,
           Variedad,
           CategoriaInsumo,
+          Campo,
           Prescripcion,
           PrescripcionInsumo,
         ],
@@ -70,6 +73,7 @@ import { PrescripcionInsumo } from './entities/prescripcion-insumo.entity';
     CostosModule,
     CultivosModule,
     CategoriasModule,
+    CamposModule,
     LotesModule,
     UsuariosModule,
     CampaniasModule,

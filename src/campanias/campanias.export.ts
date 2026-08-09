@@ -86,18 +86,20 @@ export function buildCampaniaXls(campania: any): Buffer {
   rows.push(['Costo total de labores', '', '', '', round2(resultados.costoTotalLaboresHa)]);
   rows.push([]);
 
-  rows.push(['INSUMOS', 'unidades/ha', 'costo/unidad ', 'costo total', '']);
+  rows.push(['INSUMOS', 'unidades/ha', 'costo/unidad', 'sup. aplicada', 'costo ponderado/ha']);
   rows.push(['tipo', '', '', '', '']);
   for (const i of campania.insumos || []) {
+    const ponderado =
+      (num(i.unidadesHa) * num(i.costoUnidad) * num(i.superficieAplicada)) / supDiv(supSembrada);
     rows.push([
       i.insumo?.nombre || `Insumo #${i.id}`,
       num(i.unidadesHa),
       num(i.costoUnidad),
-      round2(num(i.unidadesHa) * num(i.costoUnidad)),
-      '',
+      num(i.superficieAplicada),
+      round2(ponderado),
     ]);
   }
-  rows.push(['Costo total de insumos', '', '', round2(resultados.costoTotalInsumosHa), '']);
+  rows.push(['Costo total de insumos', '', '', '', round2(resultados.costoTotalInsumosHa)]);
   rows.push([]);
 
   rows.push(['COSTOS VARIOS', 'unidades/ha', 'costo/unidad ', 'costo total', '']);

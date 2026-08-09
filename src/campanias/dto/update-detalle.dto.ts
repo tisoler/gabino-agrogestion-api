@@ -45,6 +45,12 @@ export class UpdateCampaniaDetalleInsumoDto {
   @Type(() => Number)
   @IsNumber()
   costoUnidad?: number;
+
+  @ApiPropertyOptional({ description: 'Superficie aplicada (ha)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  superficieAplicada?: number;
 }
 
 export class UpdateCampaniaDetalleCostoDto {

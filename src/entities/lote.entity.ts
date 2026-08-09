@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Empresa } from './empresa.entity';
+import { Campo } from './campo.entity';
 
 @Entity('lote')
 export class Lote {
@@ -17,15 +18,32 @@ export class Lote {
   @Column({ name: 'id_usuario', type: 'varchar', length: 128 })
   idUsuario: string;
 
+  /**
+   * Nombre del dueño (denormalizado). Se guarda para mostrar el nombre sin
+   * depender del lookup de Firestore. Mantener sincronizado con idUsuario.
+   */
+  @Column({ name: 'nombre_usuario', type: 'varchar', length: 200, default: '' })
+  nombreUsuario: string;
+
+  /**
+   * Email del dueño (denormalizado), para la grilla.
+   */
+  @Column({ name: 'email_usuario', type: 'varchar', length: 200, default: '' })
+  emailUsuario: string;
+
   @Column({ nullable: true })
   descripcion: string;
 
   /**
-   * Campo: texto de agrupación de lotes (p.ej. establecimiento o parcela).
-   * Requerido.
+   * Campo: agrupación de lotes (p.ej. establecimiento o parcela).
+   * Es un id referenciando la tabla "campo" (como categoría en insumos).
    */
-  @Column({ type: 'varchar', length: 200 })
-  campo: string;
+  @Column({ name: 'id_campo', type: 'int', nullable: true })
+  idCampo: number | null;
+
+  @ManyToOne(() => Campo, (campo) => campo.lotes, { nullable: true })
+  @JoinColumn({ name: 'id_campo' })
+  campo: Campo;
 
   @Column('decimal', { precision: 10, scale: 8, nullable: true })
   lat: number;

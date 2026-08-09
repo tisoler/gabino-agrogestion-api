@@ -39,8 +39,7 @@ export interface CampaniaTotales extends ResultadosCampania {
 export interface CampaniaListItem {
   id: number;
   nombre: string;
-  anioDesde: number;
-  anioHasta: number;
+  campania: string;
   idLote: number;
   idCultivo: number;
   idVariedad: number | null;
@@ -52,8 +51,7 @@ export interface CampaniaListItem {
 
 export interface FindCampaniasFilters {
   currentEmpresaId?: number;
-  anioDesde?: number;
-  anioHasta?: number;
+  campanias?: string[];
   nombre?: string;
   idCultivo?: number;
   idVariedad?: number;
@@ -109,11 +107,8 @@ export class CampaniasService {
       qb.andWhere('lote.id_empresa IN (:...ids)', { ids: userEmpresas });
     }
 
-    if (filters.anioDesde !== undefined) {
-      qb.andWhere('c.anio_hasta >= :anioDesdeFiltro', { anioDesdeFiltro: filters.anioDesde });
-    }
-    if (filters.anioHasta !== undefined) {
-      qb.andWhere('c.anio_desde <= :anioHastaFiltro', { anioHastaFiltro: filters.anioHasta });
+    if (filters.campanias && filters.campanias.length > 0) {
+      qb.andWhere('c.campania IN (:...campanias)', { campanias: filters.campanias });
     }
     if (filters.nombre) {
       qb.andWhere('c.nombre ILIKE :nombre', { nombre: `%${filters.nombre}%` });
@@ -128,7 +123,7 @@ export class CampaniasService {
       qb.andWhere('c.id_lote = :idLote', { idLote: filters.idLote });
     }
 
-    qb.orderBy('c.anio_desde', 'DESC').addOrderBy('c.nombre', 'ASC');
+    qb.orderBy('c.campania', 'DESC').addOrderBy('c.nombre', 'ASC');
     const cabeceras = await qb.getMany();
     if (cabeceras.length === 0) return [];
 
@@ -178,8 +173,7 @@ export class CampaniasService {
       return {
         id: c.id,
         nombre: c.nombre,
-        anioDesde: c.anioDesde,
-        anioHasta: c.anioHasta,
+        campania: c.campania,
         idLote: c.idLote,
         idCultivo: c.idCultivo,
         idVariedad: c.idVariedad,
@@ -230,19 +224,16 @@ export class CampaniasService {
   async create(dto: CreateCampaniaDto, user: any, currentEmpresaId?: number) {
     const lote = await this.loteRepo.findOne({ where: { id: dto.idLote } });
     if (!lote) throw new BadRequestException('El lote indicado no existe');
-    await this.assertLoteAcceso(lote, user, 'crear campañas en', currentEmpresaId);
+    // Si el FE envió el productor destino (selector de la vista), se valida
+    // contra ese; si no, contra la empresa actual del header.
+    await this.assertLoteAcceso(lote, user, 'crear campañas en', dto.idEmpresa ?? currentEmpresaId);
 
     await this.assertCultivo(dto.idCultivo, user);
     if (dto.idVariedad) await this.assertVariedad(dto.idVariedad, dto.idCultivo, user);
 
-    if (dto.anioHasta < dto.anioDesde) {
-      throw new BadRequestException('anioHasta no puede ser anterior a anioDesde');
-    }
-
     const campania = this.campaniaRepo.create({
       nombre: dto.nombre,
-      anioDesde: dto.anioDesde,
-      anioHasta: dto.anioHasta,
+      campania: dto.campania,
       idLote: dto.idLote,
       idCultivo: dto.idCultivo,
       idVariedad: dto.idVariedad ?? null,
@@ -276,12 +267,6 @@ export class CampaniasService {
     const variedadId = dto.idVariedad !== undefined ? dto.idVariedad : campania.idVariedad;
     const cultivoId = dto.idCultivo ?? campania.idCultivo;
     if (variedadId) await this.assertVariedad(variedadId, cultivoId, user);
-
-    const anioDesde = dto.anioDesde ?? campania.anioDesde;
-    const anioHasta = dto.anioHasta ?? campania.anioHasta;
-    if (anioHasta < anioDesde) {
-      throw new BadRequestException('anioHasta no puede ser anterior a anioDesde');
-    }
 
     Object.assign(campania, dto);
     return this.campaniaRepo.save(campania);
@@ -345,6 +330,7 @@ export class CampaniasService {
       idInsumo: dto.idInsumo,
       unidadesHa: dto.unidadesHa,
       costoUnidad: dto.costoUnidad,
+      superficieAplicada: dto.superficieAplicada ?? 0,
     });
     return this.campaniaInsumoRepo.save(insumo);
   }

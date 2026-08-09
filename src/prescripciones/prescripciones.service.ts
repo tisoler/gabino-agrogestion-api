@@ -193,6 +193,8 @@ export class PrescripcionesService {
           idInsumo: i.idInsumo,
           unidadesHa: Number(i.cantidadPorHa) || 0,
           costoUnidad: ins?.precioUnitario ?? 0,
+          // Al igual que labores, la superficie aplicada es la de la prescripción.
+          superficieAplicada: totalHa,
         });
         await campaniaInsumoRepo.save(rel);
       }
