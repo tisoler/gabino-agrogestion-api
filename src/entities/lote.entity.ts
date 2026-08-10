@@ -57,6 +57,12 @@ export class Lote {
   @Column({ type: 'jsonb', nullable: true })
   centroide: { lat: number; lng: number } | null;
 
+  /**
+   * Superficie del lote en ha (informada por el mapa; editable).
+   */
+  @Column('decimal', { precision: 14, scale: 4, nullable: true })
+  area: number | null;
+
   @ManyToOne(() => Empresa)
   @JoinColumn({ name: 'id_empresa' })
   empresa: Empresa;

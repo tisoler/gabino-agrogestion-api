@@ -43,6 +43,12 @@ export class CreateLoteDto {
   @IsObject()
   centroide?: object;
 
+  @ApiPropertyOptional({ description: 'Superficie del lote en ha' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  area?: number;
+
   @ApiPropertyOptional({ description: 'ID de la empresa destino (solo sys-admin)' })
   @IsOptional()
   @Type(() => Number)

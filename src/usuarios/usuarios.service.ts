@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as admin from 'firebase-admin';
 import { Empresa } from '../entities/empresa.entity';
+import { Lote } from '../entities/lote.entity';
 import { Roles } from 'src/constantes';
 import type { UsuarioBasico } from '../empresas/empresas.service';
 
@@ -11,6 +12,8 @@ export class UsuariosService {
   constructor(
     @InjectRepository(Empresa)
     private empresaRepository: Repository<Empresa>,
+    @InjectRepository(Lote)
+    private loteRepository: Repository<Lote>,
   ) {}
 
   /**
@@ -65,6 +68,21 @@ export class UsuariosService {
       const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
       if (!empresa) {
         throw new NotFoundException(`Empresa ${empresaId} no encontrada`);
+      }
+    }
+
+    // No se puede desasociar a un usuario de una empresa si tiene lotes
+    // cargados en esa empresa como dueño.
+    if (remove.length > 0) {
+      const lotesConDueno = await this.loteRepository
+        .createQueryBuilder('lote')
+        .where('lote.id_usuario = :uid', { uid })
+        .andWhere('lote.id_empresa IN (:...ids)', { ids: remove })
+        .getCount();
+      if (lotesConDueno > 0) {
+        throw new BadRequestException(
+          'No se puede desasociar al usuario: tiene lotes cargados en la empresa como dueño',
+        );
       }
     }
 
