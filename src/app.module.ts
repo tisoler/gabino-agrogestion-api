@@ -13,6 +13,7 @@ import { LotesModule } from './lotes/lotes.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { CampaniasModule } from './campanias/campanias.module';
 import { PrescripcionesModule } from './prescripciones/prescripciones.module';
+import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 
 import { Empresa } from './entities/empresa.entity';
 import { Labor } from './entities/labor.entity';
@@ -78,6 +79,7 @@ import { PrescripcionInsumo } from './entities/prescripcion-insumo.entity';
     UsuariosModule,
     CampaniasModule,
     PrescripcionesModule,
+    CotizacionesModule,
   ],
 })
 export class AppModule {}

@@ -1,11 +1,8 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 import { Campania } from '../entities/campania.entity';
 import { CampaniaLabor } from '../entities/campania-labor.entity';
 import { CampaniaInsumo } from '../entities/campania-insumo.entity';
@@ -51,6 +48,7 @@ export interface CampaniaListItem {
 
 export interface FindCampaniasFilters {
   currentEmpresaId?: number;
+  empresaIds?: number[];
   campanias?: string[];
   nombre?: string;
   idCultivo?: number;
@@ -98,7 +96,14 @@ export class CampaniasService {
       .leftJoinAndSelect('c.cultivo', 'cultivo')
       .leftJoinAndSelect('c.variedad', 'variedad');
 
-    if (filters.currentEmpresaId) {
+    if (filters.empresaIds && filters.empresaIds.length > 0) {
+      // Filtro multiselect de productores. Para no-admins se respeta su scope.
+      const ids = isAdmin
+        ? filters.empresaIds
+        : filters.empresaIds.filter((id) => userEmpresas.includes(id));
+      if (ids.length === 0) return [];
+      qb.andWhere('lote.id_empresa IN (:...ids)', { ids });
+    } else if (filters.currentEmpresaId) {
       const id = Number(filters.currentEmpresaId);
       if (!isAdmin && !userEmpresas.includes(id)) return [];
       qb.andWhere('lote.id_empresa = :empresaId', { empresaId: id });
@@ -231,6 +236,8 @@ export class CampaniasService {
     await this.assertCultivo(dto.idCultivo, user);
     if (dto.idVariedad) await this.assertVariedad(dto.idVariedad, dto.idCultivo, user);
 
+    await this.assertProduccionUnica(dto.idLote, dto.campania, dto.idCultivo);
+
     const campania = this.campaniaRepo.create({
       nombre: dto.nombre,
       campania: dto.campania,
@@ -246,7 +253,11 @@ export class CampaniasService {
       cosechaXHa: dto.cosechaXHa ?? null,
       activo: true,
     });
-    return this.campaniaRepo.save(campania);
+    try {
+      return await this.campaniaRepo.save(campania);
+    } catch (e) {
+      this.throwProduccionDuplicada(e);
+    }
   }
 
   async update(id: number, dto: UpdateCampaniaDto, user: any) {
@@ -268,8 +279,19 @@ export class CampaniasService {
     const cultivoId = dto.idCultivo ?? campania.idCultivo;
     if (variedadId) await this.assertVariedad(variedadId, cultivoId, user);
 
+    await this.assertProduccionUnica(
+      dto.idLote ?? campania.idLote,
+      dto.campania ?? campania.campania,
+      cultivoId,
+      id,
+    );
+
     Object.assign(campania, dto);
-    return this.campaniaRepo.save(campania);
+    try {
+      return await this.campaniaRepo.save(campania);
+    } catch (e) {
+      this.throwProduccionDuplicada(e);
+    }
   }
 
   async remove(id: number, user: any) {
@@ -394,6 +416,28 @@ export class CampaniasService {
   // ---------------------------------------------------------------------------
   // Helpers de scope
   // ---------------------------------------------------------------------------
+  private async assertProduccionUnica(idLote: number, campania: string, idCultivo: number, excludeId?: number) {
+    const qb = this.campaniaRepo
+      .createQueryBuilder('c')
+      .where('c.id_lote = :idLote', { idLote })
+      .andWhere('c.campania = :campania', { campania })
+      .andWhere('c.id_cultivo = :idCultivo', { idCultivo })
+      .andWhere('c.activo = true');
+    if (excludeId !== undefined) qb.andWhere('c.id <> :excludeId', { excludeId });
+
+    const existe = await qb.getOne();
+    if (existe) {
+      throw new BadRequestException('Ya existe una producción con ese lote, campaña y cultivo');
+    }
+  }
+
+  private throwProduccionDuplicada(e: unknown): never {
+    if (e instanceof QueryFailedError && (e as any).code === '23505') {
+      throw new BadRequestException('Ya existe una producción con ese lote, campaña y cultivo');
+    }
+    throw e;
+  }
+
   private async campaniaOrThrow(campaniaId: number, user: any) {
     const campania = await this.campaniaRepo.findOne({
       where: { id: campaniaId },

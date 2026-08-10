@@ -17,7 +17,9 @@ import { CreatePrescripcionDto } from './dto/create-prescripcion.dto';
 
 export interface FindPrescripcionesFilters {
   empresaId?: number;
+  empresaIds?: number[];
   idCampania?: number;
+  campanias?: string[];
   idLote?: number;
   idLabor?: number;
   idInsumo?: number;
@@ -59,11 +61,16 @@ export class PrescripcionesService {
       .leftJoinAndSelect('campania.cultivo', 'cultivo')
       .leftJoinAndSelect('p.labor', 'labor');
 
-    if (filters.empresaId) {
+    if (filters.empresaIds && filters.empresaIds.length > 0) {
+      qb.andWhere('lote.id_empresa IN (:...empresaIds)', { empresaIds: filters.empresaIds });
+    } else if (filters.empresaId) {
       qb.andWhere('lote.id_empresa = :empresaId', { empresaId: filters.empresaId });
     }
     if (filters.idCampania) {
       qb.andWhere('p.id_campania = :idCampania', { idCampania: filters.idCampania });
+    }
+    if (filters.campanias && filters.campanias.length > 0) {
+      qb.andWhere('campania.campania IN (:...campanias)', { campanias: filters.campanias });
     }
     if (filters.idLote) {
       qb.andWhere('campania.id_lote = :idLote', { idLote: filters.idLote });

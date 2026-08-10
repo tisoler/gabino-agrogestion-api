@@ -45,11 +45,17 @@ export class Lote {
   @JoinColumn({ name: 'id_campo' })
   campo: Campo;
 
-  @Column('decimal', { precision: 10, scale: 8, nullable: true })
-  lat: number;
+  /**
+   * Geometría GeoJSON del lote (polígono trazado en el mapa). Opcional.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  geometria: object | null;
 
-  @Column('decimal', { precision: 11, scale: 8, nullable: true })
-  long: number;
+  /**
+   * Centroide del lote: { lat, lng } (punto central de la geometría).
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  centroide: { lat: number; lng: number } | null;
 
   @ManyToOne(() => Empresa)
   @JoinColumn({ name: 'id_empresa' })

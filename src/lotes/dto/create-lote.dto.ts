@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength, IsNumber, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, IsNumber, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateLoteDto {
@@ -33,21 +33,15 @@ export class CreateLoteDto {
   @IsNumber()
   idCampo?: number;
 
-  @ApiPropertyOptional({ description: 'Latitud (WGS84, entre -90 y 90)' })
+  @ApiPropertyOptional({ description: 'Geometría GeoJSON del lote (polígono)' })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
-  lat?: number;
+  @IsObject()
+  geometria?: object;
 
-  @ApiPropertyOptional({ description: 'Longitud (WGS84, entre -180 y 180)' })
+  @ApiPropertyOptional({ description: 'Centroide del lote: { lat, lng }' })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
-  long?: number;
+  @IsObject()
+  centroide?: object;
 
   @ApiPropertyOptional({ description: 'ID de la empresa destino (solo sys-admin)' })
   @IsOptional()

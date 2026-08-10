@@ -174,8 +174,8 @@ export class LotesService {
       idUsuario: createLoteDto.idUsuario,
       nombreUsuario: createLoteDto.nombreUsuario ?? '',
       emailUsuario: createLoteDto.emailUsuario ?? '',
-      lat: createLoteDto.lat,
-      long: createLoteDto.long,
+      geometria: createLoteDto.geometria ?? null,
+      centroide: createLoteDto.centroide ?? null,
       idEmpresa,
     });
     return this.loteRepository.save(lote);

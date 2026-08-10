@@ -38,20 +38,28 @@ export class PrescripcionesController {
   @Permissions('lectura:prescripcion')
   @ApiOperation({ summary: 'Listar prescripciones con filtros' })
   @ApiQuery({ name: 'empresaId', required: false, type: Number })
+  @ApiQuery({ name: 'empresaIds', required: false, description: 'IDs de productores separados por coma' })
   @ApiQuery({ name: 'idCampania', required: false, type: Number })
+  @ApiQuery({ name: 'campanias', required: false, description: 'Períodos separados por coma (ej: 25/26,26/27)' })
   @ApiQuery({ name: 'idLote', required: false, type: Number })
   @ApiQuery({ name: 'idLabor', required: false, type: Number })
   @ApiQuery({ name: 'idInsumo', required: false, type: Number })
   findAll(
     @Query('empresaId') empresaId?: string,
+    @Query('empresaIds') empresaIds?: string,
     @Query('idCampania') idCampania?: string,
+    @Query('campanias') campanias?: string,
     @Query('idLote') idLote?: string,
     @Query('idLabor') idLabor?: string,
     @Query('idInsumo') idInsumo?: string,
   ) {
     return this.service.findAll({
       empresaId: empresaId ? Number(empresaId) : undefined,
+      empresaIds: empresaIds
+        ? empresaIds.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))
+        : undefined,
       idCampania: idCampania ? Number(idCampania) : undefined,
+      campanias: campanias ? campanias.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
       idLote: idLote ? Number(idLote) : undefined,
       idLabor: idLabor ? Number(idLabor) : undefined,
       idInsumo: idInsumo ? Number(idInsumo) : undefined,
