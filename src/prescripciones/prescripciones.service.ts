@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Roles } from 'src/constantes';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { Prescripcion } from '../entities/prescripcion.entity';
 import { PrescripcionInsumo } from '../entities/prescripcion-insumo.entity';
@@ -48,12 +49,16 @@ export class PrescripcionesService {
     @InjectRepository(CampaniaLabor) private campaniaLaborRepo: Repository<CampaniaLabor>,
     @InjectRepository(CampaniaInsumo) private campaniaInsumoRepo: Repository<CampaniaInsumo>,
     private dataSource: DataSource,
+    private notificaciones: NotificacionesService,
   ) {}
 
   // ---------------------------------------------------------------------------
   // Listado con filtros
   // ---------------------------------------------------------------------------
-  async findAll(filters: FindPrescripcionesFilters = {}): Promise<PrescripcionListItem[]> {
+  async findAll(user: any, filters: FindPrescripcionesFilters = {}): Promise<PrescripcionListItem[]> {
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
+
     const qb = this.prescripcionRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.campania', 'campania')
@@ -62,9 +67,18 @@ export class PrescripcionesService {
       .leftJoinAndSelect('p.labor', 'labor');
 
     if (filters.empresaIds && filters.empresaIds.length > 0) {
-      qb.andWhere('lote.id_empresa IN (:...empresaIds)', { empresaIds: filters.empresaIds });
+      const ids = isAdmin
+        ? filters.empresaIds
+        : filters.empresaIds.filter((id) => userEmpresas.includes(id));
+      if (ids.length === 0) return [];
+      qb.andWhere('lote.id_empresa IN (:...empresaIds)', { empresaIds: ids });
     } else if (filters.empresaId) {
-      qb.andWhere('lote.id_empresa = :empresaId', { empresaId: filters.empresaId });
+      const id = Number(filters.empresaId);
+      if (!isAdmin && !userEmpresas.includes(id)) return [];
+      qb.andWhere('lote.id_empresa = :empresaId', { empresaId: id });
+    } else if (!isAdmin) {
+      if (userEmpresas.length === 0) return [];
+      qb.andWhere('lote.id_empresa IN (:...ids)', { ids: userEmpresas });
     }
     if (filters.idCampania) {
       qb.andWhere('p.id_campania = :idCampania', { idCampania: filters.idCampania });
@@ -133,7 +147,7 @@ export class PrescripcionesService {
   // ---------------------------------------------------------------------------
   // Crear
   // ---------------------------------------------------------------------------
-  async create(dto: CreatePrescripcionDto) {
+  async create(dto: CreatePrescripcionDto, user: any) {
     const campania = await this.campaniaRepo.findOne({
       where: { id: dto.idCampania },
       relations: ['lote'],
@@ -209,6 +223,37 @@ export class PrescripcionesService {
       return saved.id;
     });
 
+    await this.notificarNuevaPrescripcion(result, campania, user);
     return this.findOne(result);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Notificaciones
+  // ---------------------------------------------------------------------------
+  /**
+   * Cuando un asesor o asesor-admin crea una prescripción para una campaña
+   * cuyo lote tiene otro usuario como dueño, le llega una notificación con el
+   * link a la prescripción.
+   */
+  private async notificarNuevaPrescripcion(
+    prescripcionId: number,
+    campania: Campania,
+    user: any,
+  ) {
+    const esAsesor = user?.roles?.includes(Roles.ASESOR);
+    const esAsesorAdmin = user?.roles?.includes(Roles.ASESOR_ADMIN);
+    if (!esAsesor && !esAsesorAdmin) return;
+
+    const lote = campania.lote;
+    if (!lote?.idUsuario || lote.idUsuario === user.id) return;
+
+    const loteNombre = lote.descripcion?.trim() || `Lote #${lote.id}`;
+    await this.notificaciones.crear({
+      idUsuario: lote.idUsuario,
+      tipo: 'prescripcion',
+      mensaje: `Nueva prescripción en ${campania.nombre} (${campania.campania}) · ${loteNombre}`,
+      idCampania: campania.id,
+      idPrescripcion: prescripcionId,
+    });
   }
 }

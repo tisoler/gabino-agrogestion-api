@@ -13,6 +13,7 @@ import { Variedad } from '../entities/variedad.entity';
 import { CampaniasController } from './campanias.controller';
 import { CampaniasService } from './campanias.service';
 import { AuthModule } from '../auth/auth.module';
+import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AuthModule } from '../auth/auth.module';
       Variedad,
     ]),
     AuthModule,
+    NotificacionesModule,
   ],
   controllers: [CampaniasController],
   providers: [CampaniasService],

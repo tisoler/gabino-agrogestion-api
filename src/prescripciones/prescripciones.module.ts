@@ -11,6 +11,7 @@ import { CampaniaInsumo } from '../entities/campania-insumo.entity';
 import { PrescripcionesController } from './prescripciones.controller';
 import { PrescripcionesService } from './prescripciones.service';
 import { AuthModule } from '../auth/auth.module';
+import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AuthModule } from '../auth/auth.module';
       CampaniaInsumo,
     ]),
     AuthModule,
+    NotificacionesModule,
   ],
   controllers: [PrescripcionesController],
   providers: [PrescripcionesService],

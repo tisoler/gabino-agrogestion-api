@@ -27,6 +27,7 @@ import {
 } from './dto/update-detalle.dto';
 import { Roles } from '../constantes';
 import { calcularResultados, type ResultadosCampania } from './campanias.calculos';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 
 export interface CampaniaTotales extends ResultadosCampania {
   supSembrada: number;
@@ -69,6 +70,7 @@ export class CampaniasService {
     @InjectRepository(Costo) private costoRepo: Repository<Costo>,
     @InjectRepository(Cultivo) private cultivoRepo: Repository<Cultivo>,
     @InjectRepository(Variedad) private variedadRepo: Repository<Variedad>,
+    private notificaciones: NotificacionesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -254,7 +256,9 @@ export class CampaniasService {
       activo: true,
     });
     try {
-      return await this.campaniaRepo.save(campania);
+      const saved = await this.campaniaRepo.save(campania);
+      await this.notificarNuevaProduccion(saved, lote, user);
+      return saved;
     } catch (e) {
       this.throwProduccionDuplicada(e);
     }
@@ -411,6 +415,35 @@ export class CampaniasService {
     if (!detalle) throw new NotFoundException('Detalle de costo no encontrado');
     await this.campaniaCostoRepo.delete(detalle.id);
     return { ok: true };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Notificaciones
+  // ---------------------------------------------------------------------------
+  /**
+   * Cuando un asesor o asesor-admin crea una producción para un lote cuyo
+   * dueño (id_usuario) es otro usuario, le llega una notificación con el link
+   * a la producción (campaña).
+   */
+  private async notificarNuevaProduccion(
+    campania: Campania,
+    lote: Lote,
+    user: any,
+  ) {
+    const esAsesor = user.roles?.includes(Roles.ASESOR);
+    const esAsesorAdmin = user.roles?.includes(Roles.ASESOR_ADMIN);
+    if (!esAsesor && !esAsesorAdmin) return;
+
+    if (!lote.idUsuario || lote.idUsuario === user.id) return;
+
+    const loteNombre = lote.descripcion?.trim() || `Lote #${lote.id}`;
+    await this.notificaciones.crear({
+      idUsuario: lote.idUsuario,
+      tipo: 'produccion',
+      mensaje: `Nueva producción "${campania.nombre}" (${campania.campania}) en ${loteNombre}`,
+      idCampania: campania.id,
+      idPrescripcion: null,
+    });
   }
 
   // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -30,8 +31,8 @@ export class PrescripcionesController {
   @Post()
   @Permissions('escritura:prescripcion')
   @ApiOperation({ summary: 'Crear una prescripción (asigna labor e insumos a la campaña)' })
-  create(@Body() dto: CreatePrescripcionDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreatePrescripcionDto, @Request() req) {
+    return this.service.create(dto, req.user);
   }
 
   @Get()
@@ -45,6 +46,7 @@ export class PrescripcionesController {
   @ApiQuery({ name: 'idLabor', required: false, type: Number })
   @ApiQuery({ name: 'idInsumo', required: false, type: Number })
   findAll(
+    @Request() req,
     @Query('empresaId') empresaId?: string,
     @Query('empresaIds') empresaIds?: string,
     @Query('idCampania') idCampania?: string,
@@ -53,7 +55,7 @@ export class PrescripcionesController {
     @Query('idLabor') idLabor?: string,
     @Query('idInsumo') idInsumo?: string,
   ) {
-    return this.service.findAll({
+    return this.service.findAll(req.user, {
       empresaId: empresaId ? Number(empresaId) : undefined,
       empresaIds: empresaIds
         ? empresaIds.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))
