@@ -15,6 +15,7 @@ import { CampaniasModule } from './campanias/campanias.module';
 import { PrescripcionesModule } from './prescripciones/prescripciones.module';
 import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
+import { ReportesModule } from './reportes/reportes.module';
 
 import { Empresa } from './entities/empresa.entity';
 import { Labor } from './entities/labor.entity';
@@ -32,6 +33,8 @@ import { Campo } from './entities/campo.entity';
 import { Prescripcion } from './entities/prescripcion.entity';
 import { PrescripcionInsumo } from './entities/prescripcion-insumo.entity';
 import { Notificacion } from './entities/notificacion.entity';
+import { Reporte } from './entities/reporte.entity';
+import { ReporteFila } from './entities/reporte-fila.entity';
 
 @Module({
   imports: [
@@ -64,6 +67,8 @@ import { Notificacion } from './entities/notificacion.entity';
           Prescripcion,
           PrescripcionInsumo,
           Notificacion,
+          Reporte,
+          ReporteFila,
         ],
         synchronize: false, // Migraciones manuales
         logging: true,
@@ -84,6 +89,7 @@ import { Notificacion } from './entities/notificacion.entity';
     PrescripcionesModule,
     CotizacionesModule,
     NotificacionesModule,
+    ReportesModule,
   ],
 })
 export class AppModule {}
