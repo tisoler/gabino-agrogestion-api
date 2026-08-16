@@ -25,6 +25,11 @@ export class UpdateCampaniaDetalleLaborDto {
   @Type(() => Number)
   @IsNumber()
   costoLaborHa?: number;
+
+  @ApiPropertyOptional({ description: 'Observaciones (p.ej. quién realizó la labor)' })
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
 }
 
 export class UpdateCampaniaDetalleInsumoDto {

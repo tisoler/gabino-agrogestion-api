@@ -326,6 +326,7 @@ export class CampaniasService {
       fecha: dto.fecha,
       superficieLaboreada: dto.superficieLaboreada,
       costoLaborHa: dto.costoLaborHa,
+      observaciones: dto.observaciones ?? null,
     });
     return this.campaniaLaborRepo.save(labor);
   }

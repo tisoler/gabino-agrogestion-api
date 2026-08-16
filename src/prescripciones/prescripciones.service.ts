@@ -21,9 +21,10 @@ export interface FindPrescripcionesFilters {
   empresaIds?: number[];
   idCampania?: number;
   campanias?: string[];
-  idLote?: number;
-  idLabor?: number;
-  idInsumo?: number;
+  idCampo?: number[];
+  idLote?: number[];
+  idLabor?: number[];
+  idInsumo?: number[];
 }
 
 export interface PrescripcionListItem {
@@ -88,14 +89,25 @@ export class PrescripcionesService {
     if (filters.campanias && filters.campanias.length > 0) {
       qb.andWhere('campania.campania IN (:...campanias)', { campanias: filters.campanias });
     }
-    if (filters.idLote) {
-      qb.andWhere('campania.id_lote = :idLote', { idLote: filters.idLote });
+    if (filters.idCampo && filters.idCampo.length > 0) {
+      const sinCampo = filters.idCampo.includes(0);
+      const campos = filters.idCampo.filter((n) => n !== 0);
+      if (campos.length === 0) {
+        qb.andWhere('lote.id_campo IS NULL');
+      } else if (sinCampo) {
+        qb.andWhere('(lote.id_campo IN (:...campos) OR lote.id_campo IS NULL)', { campos });
+      } else {
+        qb.andWhere('lote.id_campo IN (:...campos)', { campos });
+      }
     }
-    if (filters.idLabor) {
-      qb.andWhere('p.id_labor = :idLabor', { idLabor: filters.idLabor });
+    if (filters.idLote && filters.idLote.length > 0) {
+      qb.andWhere('campania.id_lote IN (:...idLote)', { idLote: filters.idLote });
     }
-    if (filters.idInsumo) {
-      qb.innerJoin('p.insumos', 'pi', 'pi.id_insumo = :idInsumo', { idInsumo: filters.idInsumo });
+    if (filters.idLabor && filters.idLabor.length > 0) {
+      qb.andWhere('p.id_labor IN (:...idLabor)', { idLabor: filters.idLabor });
+    }
+    if (filters.idInsumo && filters.idInsumo.length > 0) {
+      qb.innerJoin('p.insumos', 'pi', 'pi.id_insumo IN (:...idInsumo)', { idInsumo: filters.idInsumo });
     }
 
     qb.orderBy('p.fecha', 'DESC').addOrderBy('p.id', 'DESC');

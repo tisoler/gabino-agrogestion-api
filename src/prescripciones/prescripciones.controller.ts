@@ -44,19 +44,25 @@ export class PrescripcionesController {
   @ApiQuery({ name: 'empresaIds', required: false, description: 'IDs de productores separados por coma' })
   @ApiQuery({ name: 'idCampania', required: false, type: Number })
   @ApiQuery({ name: 'campanias', required: false, description: 'Períodos separados por coma (ej: 25/26,26/27)' })
-  @ApiQuery({ name: 'idLote', required: false, type: Number })
-  @ApiQuery({ name: 'idLabor', required: false, type: Number })
-  @ApiQuery({ name: 'idInsumo', required: false, type: Number })
+  @ApiQuery({ name: 'idCampo', required: false, description: 'IDs de campos separados por coma (0 = sin campo)' })
+  @ApiQuery({ name: 'idLote', required: false, description: 'IDs de lotes separados por coma' })
+  @ApiQuery({ name: 'idLabor', required: false, description: 'IDs de labores separados por coma' })
+  @ApiQuery({ name: 'idInsumo', required: false, description: 'IDs de insumos separados por coma' })
   findAll(
     @Request() req,
     @Query('empresaId') empresaId?: string,
     @Query('empresaIds') empresaIds?: string,
     @Query('idCampania') idCampania?: string,
     @Query('campanias') campanias?: string,
+    @Query('idCampo') idCampo?: string,
     @Query('idLote') idLote?: string,
     @Query('idLabor') idLabor?: string,
     @Query('idInsumo') idInsumo?: string,
   ) {
+    const parseIds = (s?: string): number[] | undefined =>
+      s
+        ? s.split(',').map((n) => Number(n.trim())).filter((n) => Number.isFinite(n))
+        : undefined;
     return this.service.findAll(req.user, {
       empresaId: empresaId ? Number(empresaId) : undefined,
       empresaIds: empresaIds
@@ -64,9 +70,10 @@ export class PrescripcionesController {
         : undefined,
       idCampania: idCampania ? Number(idCampania) : undefined,
       campanias: campanias ? campanias.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
-      idLote: idLote ? Number(idLote) : undefined,
-      idLabor: idLabor ? Number(idLabor) : undefined,
-      idInsumo: idInsumo ? Number(idInsumo) : undefined,
+      idCampo: parseIds(idCampo),
+      idLote: parseIds(idLote),
+      idLabor: parseIds(idLabor),
+      idInsumo: parseIds(idInsumo),
     });
   }
 

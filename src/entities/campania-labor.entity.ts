@@ -39,6 +39,9 @@ export class CampaniaLabor {
   @Column({ name: 'costo_labor_ha', ...decimalColumn() })
   costoLaborHa: number;
 
+  @Column({ type: 'text', nullable: true })
+  observaciones: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
