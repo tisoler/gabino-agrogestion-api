@@ -4,8 +4,9 @@ import { Repository } from 'typeorm';
 import * as admin from 'firebase-admin';
 import { Empresa } from '../entities/empresa.entity';
 import { Lote } from '../entities/lote.entity';
-import { Roles } from 'src/constantes';
+import { Roles, ID_ROL_PREDETERMINADO } from 'src/constantes';
 import type { UsuarioBasico } from '../empresas/empresas.service';
+import { FirestoreCacheService } from '../cache/firestore-cache.service';
 
 @Injectable()
 export class UsuariosService {
@@ -14,6 +15,7 @@ export class UsuariosService {
     private empresaRepository: Repository<Empresa>,
     @InjectRepository(Lote)
     private loteRepository: Repository<Lote>,
+    private cache: FirestoreCacheService,
   ) {}
 
   /**
@@ -122,6 +124,10 @@ export class UsuariosService {
 
     await userRef.update({ idEmpresas: newIdEmpresas });
 
+    // La asociación cambió: invalidar cache de auth del usuario y el listado.
+    this.cache.invalidateUser(uid);
+    this.cache.invalidateAll();
+
     // Enriquecer respuesta con datos de Firebase Auth
     const authMap = await this.fetchAuthRecords([uid]);
     const auth = authMap.get(uid);
@@ -144,6 +150,36 @@ export class UsuariosService {
   }
 
   /**
+   * Bootstrap de usuarios nuevos (signup): crea el documento `usuarios/{uid}`
+   * en Firestore si no existe, con el rol por defecto y el nombre de la cuenta
+   * (displayName o email de Firebase Auth). No pisa documentos existentes.
+   *
+   * El BE usa el admin SDK (ignora las reglas de seguridad del cliente) y
+   * después invalida los caches para que el usuario nuevo aparezca de inmediato.
+   */
+  async bootstrapUsuario(user: any): Promise<{ ok: boolean }> {
+    const uid = user.id;
+    const db = admin.firestore();
+    const ref = db.collection('usuarios').doc(uid);
+
+    const snap = await ref.get();
+    if (!snap.exists) {
+      let nombre = typeof user.email === 'string' ? user.email : '';
+      try {
+        const record = await admin.auth().getUser(uid);
+        nombre = record.displayName || record.email || nombre;
+      } catch {
+        /* sin acceso a Auth: seguimos con el email */
+      }
+      await ref.set({ idRol: ID_ROL_PREDETERMINADO, nombre });
+    }
+
+    this.cache.invalidateUser(uid);
+    this.cache.invalidateAll();
+    return { ok: true };
+  }
+
+  /**
    * Lista todos los usuarios de Firestore aptos para ser asociados a una
    * empresa. A diferencia de `findAllWithUsers` (que sólo devuelve usuarios
    * con intersección en `idEmpresas`), aquí se listan TODOS los usuarios,
@@ -155,49 +191,11 @@ export class UsuariosService {
    *  - Un mismo usuario puede pertenecer a varias empresas: aparecerá como
    *    candidato para cualquiera que no lo tenga ya asociado (eso lo filtra
    *    el FE por empresa).
+   *
+   * El listado se sirve desde el cache (FirestoreCacheService).
    */
   async findCandidatos(): Promise<UsuarioBasico[]> {
-    const db = admin.firestore();
-
-    // Resolver roles por idRol (FK → roles.nombre), tolerando schemas variados.
-    const rolesSnap = await db.collection('roles').get();
-    const roleById = new Map<string, string>();
-    for (const doc of rolesSnap.docs) {
-      const nombre = doc.data()?.nombre;
-      if (typeof nombre === 'string' && nombre) {
-        roleById.set(doc.id, nombre);
-      }
-    }
-
-    const usersSnap = await db.collection('usuarios').get();
-    const candidatos: { docId: string; data: any; roles: string[] }[] = [];
-
-    for (const doc of usersSnap.docs) {
-      const data = doc.data();
-      const roles = this.resolveRoles(data, roleById);
-      if (roles.length === 0 || roles.includes(Roles.SYS_ADMIN)) {
-        continue;
-      }
-      candidatos.push({ docId: doc.id, data, roles });
-    }
-
-    if (candidatos.length === 0) return [];
-
-    // Enriquecer con Firebase Auth: nombre/email pueden faltar en Firestore.
-    const authByUid = await this.fetchAuthRecords(candidatos.map((c) => c.docId));
-
-    return candidatos.map(({ docId, data, roles }) => {
-      const auth = authByUid.get(docId);
-      return {
-        uid: docId,
-        email: auth?.email ?? data?.email ?? null,
-        nombreUsuario:
-          data?.nombre ?? data?.nombreUsuario ?? auth?.displayName ?? auth?.email ?? docId,
-        photoURL: data?.picture ?? data?.photoURL ?? auth?.photoURL ?? null,
-        roles,
-        idEmpresas: this.resolveIdEmpresas(data),
-      };
-    });
+    return this.cache.getOrLoadUsuarios();
   }
 
   private resolveRoles(data: any, roleById: Map<string, string>): string[] {
@@ -209,23 +207,6 @@ export class UsuariosService {
     }
     if (data?.idRol && roleById.has(data.idRol)) {
       return [roleById.get(data.idRol)!];
-    }
-    return [];
-  }
-
-  private resolveIdEmpresas(data: any): number[] {
-    if (Array.isArray(data?.idEmpresas)) {
-      return data.idEmpresas
-        .map((e: any) => Number(e))
-        .filter((n: number) => Number.isFinite(n) && n > 0);
-    }
-    if (data?.idEmpresas !== undefined && data?.idEmpresas !== null) {
-      const n = Number(data.idEmpresas);
-      return Number.isFinite(n) && n > 0 ? [n] : [];
-    }
-    if (data?.idEmpresa !== undefined && data?.idEmpresa !== null) {
-      const n = Number(data.idEmpresa);
-      return Number.isFinite(n) && n > 0 ? [n] : [];
     }
     return [];
   }

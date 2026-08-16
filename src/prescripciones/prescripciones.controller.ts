@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Request,
@@ -17,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { PrescripcionesService } from './prescripciones.service';
 import { CreatePrescripcionDto } from './dto/create-prescripcion.dto';
+import { UpdateAnuladaDto } from './dto/update-anulada.dto';
 import { FirebaseGuard } from '../auth/guards/firebase.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -73,5 +75,15 @@ export class PrescripcionesController {
   @ApiOperation({ summary: 'Obtener una prescripción con sus insumos' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
+  }
+
+  @Patch(':id/anulada')
+  @Permissions('escritura:prescripcion')
+  @ApiOperation({ summary: 'Anular o recuperar una prescripción (borrado lógico)' })
+  setAnulada(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateAnuladaDto,
+  ) {
+    return this.service.setAnulada(id, dto.anulada);
   }
 }

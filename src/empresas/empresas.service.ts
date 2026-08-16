@@ -5,6 +5,7 @@ import * as admin from 'firebase-admin';
 import { Empresa } from '../entities/empresa.entity';
 import { Roles } from 'src/constantes';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
+import { FirestoreCacheService } from '../cache/firestore-cache.service';
 
 export interface UsuarioBasico {
   uid: string;
@@ -24,6 +25,7 @@ export class EmpresasService {
   constructor(
     @InjectRepository(Empresa)
     private empresaRepository: Repository<Empresa>,
+    private cache: FirestoreCacheService,
   ) { }
 
   findAll(user: any): Promise<Empresa[]> {
@@ -74,6 +76,9 @@ export class EmpresasService {
       } catch (err) {
         console.warn('[empresas] No se pudo auto-asociar al creador de la empresa:', err);
       }
+      // La asociación cambió: invalidar cache de auth del creador y listado.
+      this.cache.invalidateUser(user.id);
+      this.cache.invalidateAll();
     }
 
     return saved;
@@ -138,8 +143,13 @@ export class EmpresasService {
   }
 
   /**
-   * Helper: trae todos los usuarios de Firestore con rol asesor o productor,
-   * filtrados por intersección con `allowedEmpresas`.
+   * Helper: filtra el listado de usuarios cacheado (FirestoreCacheService) por
+   * intersección con `allowedEmpresas`.
+   *
+   * El listado (todos los no sys-admin, con roles resueltos, empresas y datos
+   * de Firebase Auth) se construye una sola vez y se sirve desde cache por
+   * horas, invalidándose con POST /cache/invalidate o ante cambios de
+   * asociación de empresas.
    *
    * Tanto sys-admin como asesor/productor se filtran por empresa: el
    * endpoint `findUsuariosByEmpresa` se invoca con un único empresaId, y
@@ -150,123 +160,12 @@ export class EmpresasService {
    * Para el endpoint `findAllWithUsers` (vista Productores), `allowedEmpresas`
    * es el set de todas las empresas visibles para el usuario, y la
    * iteración posterior por empresa filtra correctamente.
-   *
-   * Resiliente a variaciones de schema en Firestore:
-   *  - Rol: `roles: string[]`  |  `rol: string`  |  `idRol: string` (FK → roles.nombre)
-   *  - Empresas: `idEmpresas: number[]`  |  `idEmpresas: string[]`  |
-   *    `idEmpresas: <escalar>`  |  `idEmpresa: <escalar>`
-   *
-   * Enriquecimiento: el documento de Firestore puede no traer `email` ni
-   * `nombre`. En ese caso consultamos Firebase Auth en batch (un round-trip
-   * cada 100 UIDs) y completamos los datos desde el Auth record. El email
-   * siempre se prefiere desde Auth (fuente de verdad).
    */
   private async fetchFirestoreUsers(opts: {
     allowedEmpresas: Set<number>
   }): Promise<UsuarioBasico[]> {
-    const db = admin.firestore();
-
-    // Pre-fetch de la colección roles para resolver idRol → nombre
-    const rolesSnap = await db.collection('roles').get();
-    const roleById = new Map<string, string>();
-    for (const doc of rolesSnap.docs) {
-      const data = doc.data();
-      const nombre = data?.nombre;
-      if (typeof nombre === 'string' && nombre) {
-        roleById.set(doc.id, nombre);
-      }
-    }
-
-    const usersSnap = await db.collection('usuarios').get();
-    const candidatos: { docId: string; data: any; roles: string[]; idEmpresas: number[] }[] = [];
-
-    for (const doc of usersSnap.docs) {
-      const data = doc.data();
-
-      const roles = this.resolveUserRoles(data, roleById);
-      // Incluye asesor, asesor-admin y productor: el asesor-admin cumple además
-      // el rol de asesor (vinculado a empresas) aunque sea admin para ver/editar todo.
-      if (
-        !roles.includes(Roles.ASESOR) &&
-        !roles.includes(Roles.ASESOR_ADMIN) &&
-        !roles.includes(Roles.PRODUCTOR)
-      ) {
-        continue;
-      }
-
-      const idEmpresas = this.resolveUserEmpresas(data);
-
-      // Filtro uniforme: la intersección con allowedEmpresas es lo que
-      // define si el usuario es "visible" para esta consulta. Para
-      // findUsuariosByEmpresa, allowedEmpresas = Set([empresaId]); para
-      // findAllWithUsers, es el set de empresas del usuario autenticado.
-      if (!idEmpresas.some((e) => opts.allowedEmpresas.has(e))) {
-        continue;
-      }
-
-      candidatos.push({ docId: doc.id, data, roles, idEmpresas });
-    }
-
-    if (candidatos.length === 0) return [];
-
-    // Enriquecer con Firebase Auth: nombre/email pueden faltar en Firestore.
-    const authByUid = await this.fetchAuthRecords(candidatos.map((c) => c.docId));
-
-    return candidatos.map(({ docId, data, roles, idEmpresas }) => {
-      const auth = authByUid.get(docId);
-      return {
-        uid: docId,
-        // Email: Auth es la fuente de verdad; Firestore es fallback.
-        email: auth?.email ?? data?.email ?? null,
-        // Nombre: priorizar Firestore (controlado por el admin), luego Auth.
-        nombreUsuario:
-          data?.nombre ?? data?.nombreUsuario ?? auth?.displayName ?? auth?.email ?? docId,
-        photoURL: data?.picture ?? data?.photoURL ?? auth?.photoURL ?? null,
-        roles,
-        idEmpresas,
-      };
-    });
-  }
-
-  /**
-   * Batch-fetch de Firebase Auth records (hasta 100 por llamada).
-   * Devuelve un Map uid → UserRecord. Si un uid no existe en Auth, se ignora.
-   */
-  private async fetchAuthRecords(uids: string[]): Promise<Map<string, admin.auth.UserRecord>> {
-    const result = new Map<string, admin.auth.UserRecord>();
-    if (uids.length === 0) return result;
-
-    const chunks: string[][] = [];
-    for (let i = 0; i < uids.length; i += 100) {
-      chunks.push(uids.slice(i, i + 100));
-    }
-
-    for (const chunk of chunks) {
-      try {
-        const res = await admin.auth().getUsers(chunk.map((uid) => ({ uid })));
-        for (const rec of res.users) {
-          result.set(rec.uid, rec);
-        }
-      } catch (err) {
-        // Si falla el batch (e.g. permisos IAM), seguimos sin enriquecimiento.
-        console.warn('[empresas] No se pudo enriquecer con Firebase Auth:', err);
-      }
-    }
-
-    return result;
-  }
-
-  private resolveUserRoles(data: any, roleById: Map<string, string>): string[] {
-    if (Array.isArray(data?.roles) && data.roles.length > 0) {
-      return data.roles.map((r: any) => String(r));
-    }
-    if (typeof data?.rol === 'string' && data.rol) {
-      return [data.rol];
-    }
-    if (data?.idRol && roleById.has(data.idRol)) {
-      return [roleById.get(data.idRol)!];
-    }
-    return [];
+    const todos = await this.cache.getOrLoadUsuarios();
+    return todos.filter((u) => u.idEmpresas.some((e) => opts.allowedEmpresas.has(e)));
   }
 
   private resolveUserEmpresas(data: any): number[] {

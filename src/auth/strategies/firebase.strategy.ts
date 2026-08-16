@@ -5,6 +5,7 @@ import { ExtractJwt } from 'passport-jwt';
 import * as admin from 'firebase-admin';
 import serviceAccount from '../../../firebase-service-account.json';
 import { Roles } from 'src/constantes';
+import { FirestoreCacheService } from '../../cache/firestore-cache.service';
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -15,7 +16,7 @@ if (!admin.apps.length) {
 
 @Injectable()
 export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
-  constructor() {
+  constructor(private readonly cache: FirestoreCacheService) {
     super();
   }
 
@@ -30,38 +31,13 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, 'firebase') {
       const decodedUser = await admin.auth().verifyIdToken(token);
       const uid = decodedUser.uid;
 
-      const db = admin.firestore();
-      const userDoc = await db.collection('usuarios').doc(uid).get();
-
-      if (!userDoc.exists) {
+      // Datos del usuario (idEmpresas + roles + permisos) cacheados por UID.
+      const authData = await this.cache.getOrLoadAuth(uid);
+      if (!authData) {
         throw new UnauthorizedException('Usuario no configurado en el sistema (UID no encontrado en Firestore)');
       }
 
-      const userData = userDoc.data();
-
-      // Permisos del rol
-      let permisos: string[] = [];
-      let roles: string[] = [];
-      const rolId = userData?.idRol;
-      if (rolId) {
-        const roleDoc = await db.collection('roles').doc(rolId).get();
-        const roleData = roleDoc.data();
-
-        if (roleData?.permisos && roleData.permisos.length > 0) {
-          const permisosDoc = await db.collection('permisos')
-            .where(admin.firestore.FieldPath.documentId(), 'in', roleData.permisos)
-            .get();
-          permisos = permisosDoc.docs.map(doc => doc.data().nombre || doc.id);
-        }
-        roles = roleData ? [roleData.nombre] : [];
-      }
-
-      // Lista normalizada de empresas del usuario (siempre un array de números)
-      const idEmpresas: number[] = Array.isArray(userData?.idEmpresas)
-        ? userData.idEmpresas
-          .map((e: any) => Number(e))
-          .filter((n: number) => Number.isFinite(n) && n > 0)
-        : [];
+      const { idEmpresas, roles, permisos } = authData;
 
       const isAsesor = roles.includes(Roles.ASESOR);
       const isAdmin = roles.includes(Roles.SYS_ADMIN) || roles.includes(Roles.ASESOR_ADMIN);

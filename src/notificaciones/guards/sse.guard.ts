@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { Roles } from 'src/constantes';
+import { FirestoreCacheService } from '../../cache/firestore-cache.service';
 
 /**
  * Guard para el endpoint SSE de notificaciones.
@@ -14,9 +15,13 @@ import { Roles } from 'src/constantes';
  * por eso el token de Firebase viaja como query param (?token=). Verifica el
  * token y arma un usuario mínimo (uid + roles + idEmpresas) como los demás
  * endpoints, sólo que sin permisos (no se aplican aquí).
+ *
+ * Los datos del usuario se sirven desde el cache (FirestoreCacheService).
  */
 @Injectable()
 export class FirebaseSseGuard implements CanActivate {
+  constructor(private readonly cache: FirestoreCacheService) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const token = req.query?.token;
@@ -28,34 +33,18 @@ export class FirebaseSseGuard implements CanActivate {
       const decodedUser = await admin.auth().verifyIdToken(token);
       const uid = decodedUser.uid;
 
-      const db = admin.firestore();
-      const userDoc = await db.collection('usuarios').doc(uid).get();
-      if (!userDoc.exists) {
+      const authData = await this.cache.getOrLoadAuth(uid);
+      if (!authData) {
         throw new UnauthorizedException('Usuario no configurado en el sistema');
       }
-      const userData = userDoc.data();
-
-      let roles: string[] = [];
-      const rolId = userData?.idRol;
-      if (rolId) {
-        const roleDoc = await db.collection('roles').doc(rolId).get();
-        const roleData = roleDoc.data();
-        roles = roleData ? [roleData.nombre] : [];
-      }
-
-      const idEmpresas: number[] = Array.isArray(userData?.idEmpresas)
-        ? userData.idEmpresas
-          .map((e: any) => Number(e))
-          .filter((n: number) => Number.isFinite(n) && n > 0)
-        : [];
 
       req.user = {
         id: uid,
         firebaseUid: uid,
         nombreUsuario: decodedUser.email,
         email: decodedUser.email,
-        idEmpresas,
-        roles,
+        idEmpresas: authData.idEmpresas,
+        roles: authData.roles,
         permisos: [],
       };
       return true;

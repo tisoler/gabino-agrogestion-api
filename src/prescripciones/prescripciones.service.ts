@@ -32,6 +32,7 @@ export interface PrescripcionListItem {
   idCampania: number;
   idLabor: number;
   totalHaAplicacion: number;
+  anulada: boolean;
   campania: Campania | null;
   labor: Labor | null;
   insumoCount: number;
@@ -63,6 +64,7 @@ export class PrescripcionesService {
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.campania', 'campania')
       .leftJoinAndSelect('campania.lote', 'lote')
+      .leftJoinAndSelect('lote.campo', 'campo')
       .leftJoinAndSelect('campania.cultivo', 'cultivo')
       .leftJoinAndSelect('p.labor', 'labor');
 
@@ -121,10 +123,22 @@ export class PrescripcionesService {
       idCampania: p.idCampania,
       idLabor: p.idLabor,
       totalHaAplicacion: p.totalHaAplicacion,
+      anulada: p.anulada,
       campania: p.campania ?? null,
       labor: p.labor ?? null,
       insumoCount: countByPrescripcion.get(p.id) ?? 0,
     }));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Anular / recuperar (borrado lógico)
+  // ---------------------------------------------------------------------------
+  async setAnulada(id: number, anulada: boolean) {
+    const prescripcion = await this.prescripcionRepo.findOne({ where: { id } });
+    if (!prescripcion) throw new NotFoundException('Prescripción no encontrada');
+    prescripcion.anulada = anulada;
+    await this.prescripcionRepo.save(prescripcion);
+    return { id, anulada };
   }
 
   // ---------------------------------------------------------------------------
@@ -251,7 +265,7 @@ export class PrescripcionesService {
     await this.notificaciones.crear({
       idUsuario: lote.idUsuario,
       tipo: 'prescripcion',
-      mensaje: `Nueva prescripción en ${campania.nombre} (${campania.campania}) · ${loteNombre}`,
+      mensaje: `Nueva prescripción en ${campania.campania} · ${loteNombre}`,
       idCampania: campania.id,
       idPrescripcion: prescripcionId,
     });

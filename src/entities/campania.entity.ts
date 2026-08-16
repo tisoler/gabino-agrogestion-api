@@ -20,9 +20,6 @@ export class Campania {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  nombre: string;
-
   /**
    * Período de la campaña (ej: "25/26"). Precargado en el FE con los períodos
    * válidos (desde 25/26 hasta el período actual).

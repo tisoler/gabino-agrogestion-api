@@ -60,30 +60,34 @@ export class CampaniasController {
   @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number })
   @ApiQuery({ name: 'empresaIds', required: false, description: 'IDs de productores separados por coma' })
   @ApiQuery({ name: 'campanias', required: false, description: 'Períodos separados por coma (ej: 25/26,26/27)' })
-  @ApiQuery({ name: 'nombre', required: false, type: String })
-  @ApiQuery({ name: 'idCultivo', required: false, type: Number })
-  @ApiQuery({ name: 'idVariedad', required: false, type: Number })
-  @ApiQuery({ name: 'idLote', required: false, type: Number })
+  @ApiQuery({ name: 'idCampo', required: false, description: 'IDs de campos separados por coma (0 = sin campo)' })
+  @ApiQuery({ name: 'idCultivo', required: false, description: 'IDs de cultivos separados por coma' })
+  @ApiQuery({ name: 'idVariedad', required: false, description: 'IDs de variedades separados por coma' })
+  @ApiQuery({ name: 'idLote', required: false, description: 'IDs de lotes separados por coma' })
   findAll(
     @Request() req,
     @Query('currentEmpresaId') currentEmpresaId?: string,
     @Query('empresaIds') empresaIds?: string,
     @Query('campanias') campanias?: string,
-    @Query('nombre') nombre?: string,
+    @Query('idCampo') idCampo?: string,
     @Query('idCultivo') idCultivo?: string,
     @Query('idVariedad') idVariedad?: string,
     @Query('idLote') idLote?: string,
   ) {
+    const parseIds = (s?: string): number[] | undefined =>
+      s
+        ? s.split(',').map((n) => Number(n.trim())).filter((n) => Number.isFinite(n))
+        : undefined;
     return this.service.findAll(req.user, {
       currentEmpresaId: currentEmpresaId ? Number(currentEmpresaId) : undefined,
       empresaIds: empresaIds
         ? empresaIds.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))
         : undefined,
       campanias: campanias ? campanias.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
-      nombre: nombre || undefined,
-      idCultivo: idCultivo ? Number(idCultivo) : undefined,
-      idVariedad: idVariedad ? Number(idVariedad) : undefined,
-      idLote: idLote ? Number(idLote) : undefined,
+      idCampo: parseIds(idCampo),
+      idCultivo: parseIds(idCultivo),
+      idVariedad: parseIds(idVariedad),
+      idLote: parseIds(idLote),
     });
   }
 
@@ -106,7 +110,7 @@ export class CampaniasController {
     const buffer = buildCampaniaXls(campania);
 
     const nombreArchivo =
-      (campania?.lote?.descripcion || campania?.nombre || `campania-${id}`)
+      (campania?.lote?.descripcion || `campania-${id}`)
         .replace(/[\\/:*?"<>|]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim() + '.xls';

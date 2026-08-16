@@ -16,6 +16,7 @@ import { PrescripcionesModule } from './prescripciones/prescripciones.module';
 import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { ReportesModule } from './reportes/reportes.module';
+import { CacheModule } from './cache/cache.module';
 
 import { Empresa } from './entities/empresa.entity';
 import { Labor } from './entities/labor.entity';
@@ -90,6 +91,7 @@ import { ReporteFila } from './entities/reporte-fila.entity';
     CotizacionesModule,
     NotificacionesModule,
     ReportesModule,
+    CacheModule,
   ],
 })
 export class AppModule {}

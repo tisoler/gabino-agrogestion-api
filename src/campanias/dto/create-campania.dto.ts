@@ -2,21 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   Matches,
-  MaxLength,
 } from 'class-validator';
 
 export class CreateCampaniaDto {
-  @ApiProperty({ description: 'Nombre visible de la campaña' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  nombre: string;
-
   @ApiProperty({ description: 'Período de la campaña (ej: 25/26)', example: '25/26' })
   @IsString()
   @Matches(/^\d{2}\/\d{2}$/)

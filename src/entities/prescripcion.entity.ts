@@ -38,6 +38,9 @@ export class Prescripcion {
   @Column({ name: 'total_ha_aplicacion', ...decimalColumn() })
   totalHaAplicacion: number;
 
+  @Column({ name: 'anulada', default: false })
+  anulada: boolean;
+
   @OneToMany(() => PrescripcionInsumo, (pi) => pi.prescripcion, { cascade: true })
   insumos: PrescripcionInsumo[];
 

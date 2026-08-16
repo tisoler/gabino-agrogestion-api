@@ -36,7 +36,6 @@ export interface CampaniaTotales extends ResultadosCampania {
 
 export interface CampaniaListItem {
   id: number;
-  nombre: string;
   campania: string;
   idLote: number;
   idCultivo: number;
@@ -51,10 +50,10 @@ export interface FindCampaniasFilters {
   currentEmpresaId?: number;
   empresaIds?: number[];
   campanias?: string[];
-  nombre?: string;
-  idCultivo?: number;
-  idVariedad?: number;
-  idLote?: number;
+  idCampo?: number[];
+  idLote?: number[];
+  idCultivo?: number[];
+  idVariedad?: number[];
 }
 
 @Injectable()
@@ -95,6 +94,7 @@ export class CampaniasService {
     const qb = this.campaniaRepo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.lote', 'lote')
+      .leftJoinAndSelect('lote.campo', 'campo')
       .leftJoinAndSelect('c.cultivo', 'cultivo')
       .leftJoinAndSelect('c.variedad', 'variedad');
 
@@ -117,20 +117,28 @@ export class CampaniasService {
     if (filters.campanias && filters.campanias.length > 0) {
       qb.andWhere('c.campania IN (:...campanias)', { campanias: filters.campanias });
     }
-    if (filters.nombre) {
-      qb.andWhere('c.nombre ILIKE :nombre', { nombre: `%${filters.nombre}%` });
+    if (filters.idCampo && filters.idCampo.length > 0) {
+      const sinCampo = filters.idCampo.includes(0);
+      const campos = filters.idCampo.filter((n) => n !== 0);
+      if (campos.length === 0) {
+        qb.andWhere('lote.id_campo IS NULL');
+      } else if (sinCampo) {
+        qb.andWhere('(lote.id_campo IN (:...campos) OR lote.id_campo IS NULL)', { campos });
+      } else {
+        qb.andWhere('lote.id_campo IN (:...campos)', { campos });
+      }
     }
-    if (filters.idCultivo) {
-      qb.andWhere('c.id_cultivo = :idCultivo', { idCultivo: filters.idCultivo });
+    if (filters.idLote && filters.idLote.length > 0) {
+      qb.andWhere('c.id_lote IN (:...idLote)', { idLote: filters.idLote });
     }
-    if (filters.idVariedad) {
-      qb.andWhere('c.id_variedad = :idVariedad', { idVariedad: filters.idVariedad });
+    if (filters.idCultivo && filters.idCultivo.length > 0) {
+      qb.andWhere('c.id_cultivo IN (:...idCultivo)', { idCultivo: filters.idCultivo });
     }
-    if (filters.idLote) {
-      qb.andWhere('c.id_lote = :idLote', { idLote: filters.idLote });
+    if (filters.idVariedad && filters.idVariedad.length > 0) {
+      qb.andWhere('c.id_variedad IN (:...idVariedad)', { idVariedad: filters.idVariedad });
     }
 
-    qb.orderBy('c.campania', 'DESC').addOrderBy('c.nombre', 'ASC');
+    qb.orderBy('c.campania', 'DESC').addOrderBy('c.id', 'DESC');
     const cabeceras = await qb.getMany();
     if (cabeceras.length === 0) return [];
 
@@ -179,7 +187,6 @@ export class CampaniasService {
       });
       return {
         id: c.id,
-        nombre: c.nombre,
         campania: c.campania,
         idLote: c.idLote,
         idCultivo: c.idCultivo,
@@ -198,7 +205,7 @@ export class CampaniasService {
   async findOne(id: number, user: any) {
     const campania = await this.campaniaRepo.findOne({
       where: { id },
-      relations: ['lote', 'cultivo', 'variedad'],
+      relations: { lote: { campo: true }, cultivo: true, variedad: true },
     });
     if (!campania) throw new NotFoundException('Campaña no encontrada');
 
@@ -241,7 +248,6 @@ export class CampaniasService {
     await this.assertProduccionUnica(dto.idLote, dto.campania, dto.idCultivo);
 
     const campania = this.campaniaRepo.create({
-      nombre: dto.nombre,
       campania: dto.campania,
       idLote: dto.idLote,
       idCultivo: dto.idCultivo,
@@ -440,7 +446,7 @@ export class CampaniasService {
     await this.notificaciones.crear({
       idUsuario: lote.idUsuario,
       tipo: 'produccion',
-      mensaje: `Nueva producción "${campania.nombre}" (${campania.campania}) en ${loteNombre}`,
+      mensaje: `Nueva producción en ${loteNombre} (${campania.campania})`,
       idCampania: campania.id,
       idPrescripcion: null,
     });

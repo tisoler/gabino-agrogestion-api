@@ -6,16 +6,9 @@ import {
   IsOptional,
   IsString,
   Matches,
-  MaxLength,
 } from 'class-validator';
 
 export class UpdateCampaniaDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  nombre?: string;
-
   @ApiPropertyOptional({ description: 'Período de la campaña (ej: 25/26)' })
   @IsOptional()
   @IsString()

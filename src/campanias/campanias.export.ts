@@ -51,7 +51,7 @@ export function buildCampaniaXls(campania: any): Buffer {
     costos: campania.costos || [],
   });
 
-  const loteNombre = campania.lote?.descripcion || campania.nombre || '';
+  const loteNombre = campania.lote?.descripcion || `Lote #${campania.idLote}`;
   const variedadNombre = campania.variedad?.nombre || '';
   const cultivoNombre = campania.cultivo?.nombre || '';
 
@@ -138,7 +138,7 @@ export function buildCampaniaXls(campania: any): Buffer {
     { wch: 20 },
   ];
 
-  const sheetName = sanitizeSheetName(loteNombre || campania.nombre || 'CAMPANIA');
+  const sheetName = sanitizeSheetName(loteNombre || 'CAMPANIA');
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
