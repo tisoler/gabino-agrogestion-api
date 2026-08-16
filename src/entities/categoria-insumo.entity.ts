@@ -1,7 +1,14 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Insumo } from './insumo.entity';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from "typeorm";
+import { Insumo } from "./insumo.entity";
 
-@Entity('categoria_insumo')
+@Entity("categoria_insumo")
 export class CategoriaInsumo {
   @PrimaryGeneratedColumn()
   id: number;
@@ -12,10 +19,10 @@ export class CategoriaInsumo {
   @Column({ nullable: true })
   descripcion: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
   @Column({ default: true })

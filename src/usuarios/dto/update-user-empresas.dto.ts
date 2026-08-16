@@ -1,10 +1,11 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsInt, IsOptional, Min, ArrayUnique } from 'class-validator';
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { IsArray, IsInt, IsOptional, Min, ArrayUnique } from "class-validator";
 
 export class UpdateUserEmpresasDto {
   @ApiPropertyOptional({
     type: [Number],
-    description: 'IDs de empresas a asociar al usuario (se agregan al idEmpresas)',
+    description:
+      "IDs de empresas a asociar al usuario (se agregan al idEmpresas)",
   })
   @IsOptional()
   @IsArray()
@@ -15,7 +16,8 @@ export class UpdateUserEmpresasDto {
 
   @ApiPropertyOptional({
     type: [Number],
-    description: 'IDs de empresas a desasociar del usuario (se quitan del idEmpresas)',
+    description:
+      "IDs de empresas a desasociar del usuario (se quitan del idEmpresas)",
   })
   @IsOptional()
   @IsArray()

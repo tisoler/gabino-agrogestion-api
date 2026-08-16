@@ -1,34 +1,43 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CategoriaInsumo } from '../entities/categoria-insumo.entity';
-import { CreateCategoriaInsumoDto } from './dto/create-categoria-insumo.dto';
-import { UpdateCategoriaInsumoDto } from './dto/update-categoria-insumo.dto';
-import { Roles } from 'src/constantes';
-import { normalizeNombre, translateUniqueViolation } from '../utils/nombre';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { CategoriaInsumo } from "../entities/categoria-insumo.entity";
+import { CreateCategoriaInsumoDto } from "./dto/create-categoria-insumo.dto";
+import { UpdateCategoriaInsumoDto } from "./dto/update-categoria-insumo.dto";
+import { Roles } from "src/constantes";
+import { normalizeNombre, translateUniqueViolation } from "../utils/nombre";
 
 @Injectable()
 export class CategoriasService {
   constructor(
     @InjectRepository(CategoriaInsumo)
     private categoriaRepository: Repository<CategoriaInsumo>,
-  ) { }
+  ) {}
 
   findAll() {
-    return this.categoriaRepository.find({ order: { nombre: 'ASC' } });
+    return this.categoriaRepository.find({ order: { nombre: "ASC" } });
   }
 
   async findOne(id: number) {
     const categoria = await this.categoriaRepository.findOne({ where: { id } });
-    if (!categoria) throw new NotFoundException('Categoría de insumo no encontrada');
+    if (!categoria)
+      throw new NotFoundException("Categoría de insumo no encontrada");
     return categoria;
   }
 
   private assertCanManage(user: any) {
     const roles: string[] = user.roles || [];
-    const canManage = roles.includes(Roles.SYS_ADMIN) || roles.includes(Roles.ASESOR_ADMIN);
+    const canManage =
+      roles.includes(Roles.SYS_ADMIN) || roles.includes(Roles.ASESOR_ADMIN);
     if (!canManage) {
-      throw new ForbiddenException('Solo sys-admin o asesor-admin pueden crear o editar categorías de insumo');
+      throw new ForbiddenException(
+        "Solo sys-admin o asesor-admin pueden crear o editar categorías de insumo",
+      );
     }
   }
 
@@ -37,17 +46,19 @@ export class CategoriasService {
     if (!lower) return;
 
     const qb = this.categoriaRepository
-      .createQueryBuilder('c')
-      .where('LOWER(c.nombre) = :lower', { lower })
-      .andWhere('c.activo = true');
+      .createQueryBuilder("c")
+      .where("LOWER(c.nombre) = :lower", { lower })
+      .andWhere("c.activo = true");
 
     if (excludeId !== undefined) {
-      qb.andWhere('c.id <> :excludeId', { excludeId });
+      qb.andWhere("c.id <> :excludeId", { excludeId });
     }
 
     const conflict = await qb.getOne();
     if (conflict) {
-      throw new BadRequestException(`Ya existe una categoría de insumo con el nombre "${nombre}".`);
+      throw new BadRequestException(
+        `Ya existe una categoría de insumo con el nombre "${nombre}".`,
+      );
     }
   }
 
@@ -64,13 +75,18 @@ export class CategoriasService {
       });
       return await this.categoriaRepository.save(categoria);
     } catch (e) {
-      translateUniqueViolation(e, 'categoría de insumo');
+      translateUniqueViolation(e, "categoría de insumo");
     }
   }
 
-  async update(id: number, updateCategoriaInsumoDto: UpdateCategoriaInsumoDto, user: any) {
+  async update(
+    id: number,
+    updateCategoriaInsumoDto: UpdateCategoriaInsumoDto,
+    user: any,
+  ) {
     const categoria = await this.categoriaRepository.findOne({ where: { id } });
-    if (!categoria) throw new NotFoundException('Categoría de insumo no encontrada');
+    if (!categoria)
+      throw new NotFoundException("Categoría de insumo no encontrada");
 
     this.assertCanManage(user);
 
@@ -93,7 +109,7 @@ export class CategoriasService {
     try {
       return await this.categoriaRepository.save(categoria);
     } catch (e) {
-      translateUniqueViolation(e, 'categoría de insumo');
+      translateUniqueViolation(e, "categoría de insumo");
     }
   }
 }

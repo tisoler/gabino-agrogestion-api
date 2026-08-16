@@ -1,61 +1,108 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { LaboresService } from './labores.service';
-import { CreateLaborDto } from './dto/create-labor.dto';
-import { UpdateLaborDto } from './dto/update-labor.dto';
-import { FirebaseGuard } from '../auth/guards/firebase.guard';
-import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+  ParseIntPipe,
+} from "@nestjs/common";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from "@nestjs/swagger";
+import { LaboresService } from "./labores.service";
+import { CreateLaborDto } from "./dto/create-labor.dto";
+import { UpdateLaborDto } from "./dto/update-labor.dto";
+import { FirebaseGuard } from "../auth/guards/firebase.guard";
+import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { Permissions } from "../auth/decorators/permissions.decorator";
 
-@ApiTags('labores')
-@Controller('labores')
+@ApiTags("labores")
+@Controller("labores")
 @UseGuards(FirebaseGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class LaboresController {
-  constructor(private readonly laboresService: LaboresService) { }
+  constructor(private readonly laboresService: LaboresService) {}
 
   @Post()
-  @Permissions('escritura:labor')
-  @ApiOperation({ summary: 'Crear una nueva labor' })
+  @Permissions("escritura:labor")
+  @ApiOperation({ summary: "Crear una nueva labor" })
   create(@Body() createLaborDto: CreateLaborDto, @Request() req) {
-    return this.laboresService.create(createLaborDto, req.user, req.user.currentEmpresaId);
+    return this.laboresService.create(
+      createLaborDto,
+      req.user,
+      req.user.currentEmpresaId,
+    );
   }
 
   @Get()
-  @Permissions('lectura:labor')
-  @ApiOperation({ summary: 'Listar todas las labores' })
-  @ApiQuery({ name: 'all', required: false, type: Boolean })
-  @ApiQuery({ name: 'companyIds', required: false, type: String, description: 'IDs de empresas separados por coma' })
-  @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number, description: 'ID de la empresa actual' })
-  @ApiQuery({ name: 'soloActivos', required: false, type: Boolean, description: 'Si es true, filtra solo ítems activos' })
-  @ApiQuery({ name: 'scope', required: false, type: String, description: 'global | empresa (para no-admin)' })
+  @Permissions("lectura:labor")
+  @ApiOperation({ summary: "Listar todas las labores" })
+  @ApiQuery({ name: "all", required: false, type: Boolean })
+  @ApiQuery({
+    name: "companyIds",
+    required: false,
+    type: String,
+    description: "IDs de empresas separados por coma",
+  })
+  @ApiQuery({
+    name: "currentEmpresaId",
+    required: false,
+    type: Number,
+    description: "ID de la empresa actual",
+  })
+  @ApiQuery({
+    name: "soloActivos",
+    required: false,
+    type: Boolean,
+    description: "Si es true, filtra solo ítems activos",
+  })
+  @ApiQuery({
+    name: "scope",
+    required: false,
+    type: String,
+    description: "global | empresa (para no-admin)",
+  })
   findAll(
     @Request() req,
-    @Query('all') all?: string,
-    @Query('companyIds') companyIds?: string,
-    @Query('currentEmpresaId') currentEmpresaId?: number,
-    @Query('soloActivos') soloActivos?: string,
-    @Query('scope') scope?: string
+    @Query("all") all?: string,
+    @Query("companyIds") companyIds?: string,
+    @Query("currentEmpresaId") currentEmpresaId?: number,
+    @Query("soloActivos") soloActivos?: string,
+    @Query("scope") scope?: string,
   ) {
-    const showAll = all === 'true';
-    const onlyActive = soloActivos === 'true';
-    return this.laboresService.findAll(req.user, showAll, companyIds, currentEmpresaId, onlyActive, scope);
+    const showAll = all === "true";
+    const onlyActive = soloActivos === "true";
+    return this.laboresService.findAll(
+      req.user,
+      showAll,
+      companyIds,
+      currentEmpresaId,
+      onlyActive,
+      scope,
+    );
   }
 
-  @Get(':id')
-  @Permissions('lectura:labor')
-  @ApiOperation({ summary: 'Obtener una labor por id' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id")
+  @Permissions("lectura:labor")
+  @ApiOperation({ summary: "Obtener una labor por id" })
+  findOne(@Param("id", ParseIntPipe) id: number) {
     return this.laboresService.findOne(id);
   }
 
-  @Patch(':id')
-  @Permissions('escritura:labor')
-  @ApiOperation({ summary: 'Actualizar una labor' })
+  @Patch(":id")
+  @Permissions("escritura:labor")
+  @ApiOperation({ summary: "Actualizar una labor" })
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateLaborDto: UpdateLaborDto,
-    @Request() req
+    @Request() req,
   ) {
     return this.laboresService.update(id, updateLaborDto, req.user);
   }

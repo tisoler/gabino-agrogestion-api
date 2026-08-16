@@ -3,17 +3,17 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Reporte, TipoCosecha, TipoReporte } from '../entities/reporte.entity';
-import { ReporteFila } from '../entities/reporte-fila.entity';
-import { Empresa } from '../entities/empresa.entity';
-import { Lote } from '../entities/lote.entity';
-import { Campania } from '../entities/campania.entity';
-import { Roles } from '../constantes';
-import { calcularResultados } from '../campanias/campanias.calculos';
-import { CreateReporteDto, ReporteFilaDto } from './dto/create-reporte.dto';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Reporte, TipoCosecha, TipoReporte } from "../entities/reporte.entity";
+import { ReporteFila } from "../entities/reporte-fila.entity";
+import { Empresa } from "../entities/empresa.entity";
+import { Lote } from "../entities/lote.entity";
+import { Campania } from "../entities/campania.entity";
+import { Roles } from "../constantes";
+import { calcularResultados } from "../campanias/campanias.calculos";
+import { CreateReporteDto, ReporteFilaDto } from "./dto/create-reporte.dto";
 
 export interface ResumenFilaCalculada {
   id: number | null;
@@ -87,14 +87,15 @@ const IVA_PCT = 0.21;
 
 const num = (v: number | string | null | undefined): number => {
   if (v === null || v === undefined) return 0;
-  const n = typeof v === 'string' ? parseFloat(v) : v;
+  const n = typeof v === "string" ? parseFloat(v) : v;
   return Number.isFinite(n) ? n : 0;
 };
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
 const esAdmin = (user: any): boolean =>
-  user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
+  user.roles?.includes(Roles.SYS_ADMIN) ||
+  user.roles?.includes(Roles.ASESOR_ADMIN);
 
 const empresasDelUsuario = (user: any): number[] =>
   (user.idEmpresas || []).map((e: any) => Number(e));
@@ -138,29 +139,30 @@ export class ReportesService {
     const userEmpresas = empresasDelUsuario(user);
 
     const qb = this.reporteRepo
-      .createQueryBuilder('r')
-      .leftJoinAndSelect('r.empresa', 'empresa')
-      .where('r.activo = :activo', { activo: true })
-      .orderBy('r.updatedAt', 'DESC');
+      .createQueryBuilder("r")
+      .leftJoinAndSelect("r.empresa", "empresa")
+      .where("r.activo = :activo", { activo: true })
+      .orderBy("r.updatedAt", "DESC");
 
     if (!isAdmin) {
       if (userEmpresas.length === 0) return [];
-      qb.andWhere('r.id_empresa IN (:...ids)', { ids: userEmpresas });
+      qb.andWhere("r.id_empresa IN (:...ids)", { ids: userEmpresas });
     }
 
     const reportes = await qb.getMany();
     if (reportes.length === 0) return [];
 
     const filaCounts = await this.filaRepo
-      .createQueryBuilder('f')
-      .select('f.id_reporte', 'id_reporte')
-      .addSelect('COUNT(*)', 'cnt')
-      .where('f.id_reporte IN (:...ids)', { ids: reportes.map((r) => r.id) })
-      .groupBy('f.id_reporte')
+      .createQueryBuilder("f")
+      .select("f.id_reporte", "id_reporte")
+      .addSelect("COUNT(*)", "cnt")
+      .where("f.id_reporte IN (:...ids)", { ids: reportes.map((r) => r.id) })
+      .groupBy("f.id_reporte")
       .getRawMany<{ id_reporte: number; cnt: string }>();
 
     const countBy = new Map<number, number>();
-    for (const row of filaCounts) countBy.set(Number(row.id_reporte), Number(row.cnt));
+    for (const row of filaCounts)
+      countBy.set(Number(row.id_reporte), Number(row.cnt));
 
     return reportes.map((r) => ({
       id: r.id,
@@ -181,7 +183,11 @@ export class ReportesService {
     return this.computar(id, user);
   }
 
-  async update(user: any, id: number, dto: CreateReporteDto): Promise<ReporteCalculado> {
+  async update(
+    user: any,
+    id: number,
+    dto: CreateReporteDto,
+  ): Promise<ReporteCalculado> {
     const reporte = await this.reporteOrThrow(id, user);
     const { reporte: normalizado } = await this.validarYNormalizar(dto, user);
 
@@ -209,19 +215,27 @@ export class ReportesService {
   // ---------------------------------------------------------------------------
   // Producciones candidatas para los builders
   // ---------------------------------------------------------------------------
-  async producciones(user: any, empresaId: number, campania: string): Promise<ProduccionesReporte> {
+  async producciones(
+    user: any,
+    empresaId: number,
+    campania: string,
+  ): Promise<ProduccionesReporte> {
     const isAdmin = esAdmin(user);
     const userEmpresas = empresasDelUsuario(user);
     if (!isAdmin && !userEmpresas.includes(empresaId)) {
-      throw new ForbiddenException('No tiene permisos para consultar este productor');
+      throw new ForbiddenException(
+        "No tiene permisos para consultar este productor",
+      );
     }
 
     const campanias = await this.campaniaRepo.find({
       where: { campania, activo: true },
-      relations: ['lote', 'cultivo', 'labores', 'insumos', 'costos'],
+      relations: ["lote", "cultivo", "labores", "insumos", "costos"],
     });
 
-    const delProductor = campanias.filter((c) => c.lote?.idEmpresa === empresaId);
+    const delProductor = campanias.filter(
+      (c) => c.lote?.idEmpresa === empresaId,
+    );
 
     const lotes = new Map<number, string | null>();
     const producciones: ProduccionCandidata[] = [];
@@ -243,10 +257,14 @@ export class ReportesService {
       });
     }
 
-    producciones.sort((a, b) => a.loteDescripcion.localeCompare(b.loteDescripcion, 'es'));
+    producciones.sort((a, b) =>
+      a.loteDescripcion.localeCompare(b.loteDescripcion, "es"),
+    );
     const lotesArray = Array.from(lotes.entries())
       .map(([id, descripcion]) => ({ id, descripcion }))
-      .sort((a, b) => (a.descripcion || '').localeCompare(b.descripcion || '', 'es'));
+      .sort((a, b) =>
+        (a.descripcion || "").localeCompare(b.descripcion || "", "es"),
+      );
 
     return { lotes: lotesArray, producciones };
   }
@@ -256,18 +274,42 @@ export class ReportesService {
   // ---------------------------------------------------------------------------
   private async computar(id: number, user: any): Promise<ReporteCalculado> {
     const reporte = await this.reporteOrThrow(id, user);
-    const empresa = await this.empresaRepo.findOne({ where: { id: reporte.idEmpresa } });
+    const empresa = await this.empresaRepo.findOne({
+      where: { id: reporte.idEmpresa },
+    });
     const filas = await this.filaRepo.find({
       where: { idReporte: id },
       relations: {
         lote: true,
-        produccion: { cultivo: true, lote: true, labores: true, insumos: true, costos: true },
-        produccionFina: { cultivo: true, lote: true, labores: true, insumos: true, costos: true },
-        produccionGruesa: { cultivo: true, lote: true, labores: true, insumos: true, costos: true },
+        produccion: {
+          cultivo: true,
+          lote: true,
+          labores: true,
+          insumos: true,
+          costos: true,
+        },
+        produccionFina: {
+          cultivo: true,
+          lote: true,
+          labores: true,
+          insumos: true,
+          costos: true,
+        },
+        produccionGruesa: {
+          cultivo: true,
+          lote: true,
+          labores: true,
+          insumos: true,
+          costos: true,
+        },
       },
-      order: { id: 'ASC' },
+      order: { id: "ASC" },
     });
-    return this.calcularDesde(reporte, empresa?.nombre || `Productor #${reporte.idEmpresa}`, filas);
+    return this.calcularDesde(
+      reporte,
+      empresa?.nombre || `Productor #${reporte.idEmpresa}`,
+      filas,
+    );
   }
 
   private async calcularDesde(
@@ -275,7 +317,7 @@ export class ReportesService {
     empresaNombre: string,
     filas: ReporteFila[],
   ): Promise<ReporteCalculado> {
-    if (reporte.tipo === 'resumen_campania') {
+    if (reporte.tipo === "resumen_campania") {
       const computadas: ResumenFilaCalculada[] = [];
       let superficieTotal = 0;
       let margenTotal = 0;
@@ -286,11 +328,14 @@ export class ReportesService {
         const mGruesa = this.margenDe(f.produccionGruesa);
 
         const superficie = mFina?.supSembrada ?? mGruesa?.supSembrada ?? 0;
-        const margenLote = (mFina?.margenBrutoSAlquilerLote ?? 0) + (mGruesa?.margenBrutoSAlquilerLote ?? 0);
+        const margenLote =
+          (mFina?.margenBrutoSAlquilerLote ?? 0) +
+          (mGruesa?.margenBrutoSAlquilerLote ?? 0);
 
         superficieTotal += superficie;
         margenTotal += margenLote;
-        if (precioSoja === null && mGruesa?.precioXQq != null) precioSoja = mGruesa.precioXQq;
+        if (precioSoja === null && mGruesa?.precioXQq != null)
+          precioSoja = mGruesa.precioXQq;
 
         computadas.push({
           id: f.id,
@@ -310,7 +355,8 @@ export class ReportesService {
         });
       }
 
-      const margenBrutoMedioHa = superficieTotal > 0 ? margenTotal / superficieTotal : 0;
+      const margenBrutoMedioHa =
+        superficieTotal > 0 ? margenTotal / superficieTotal : 0;
 
       return {
         id: reporte.id,
@@ -326,7 +372,10 @@ export class ReportesService {
           superficieTotal: round2(superficieTotal),
           margenBrutoTotal: round2(margenTotal),
           margenBrutoMedioHa: round2(margenBrutoMedioHa),
-          eqSoja: precioSoja && precioSoja > 0 ? round2(margenBrutoMedioHa / precioSoja) : null,
+          eqSoja:
+            precioSoja && precioSoja > 0
+              ? round2(margenBrutoMedioHa / precioSoja)
+              : null,
         },
       };
     }
@@ -337,18 +386,30 @@ export class ReportesService {
 
     for (const f of filas) {
       const pct =
-        f.porcentajeAsesoramiento != null ? num(f.porcentajeAsesoramiento) : num(reporte.asesoramientoPorcentaje);
-      const produccionQq = f.produccion ? num(f.produccion.prodNetaTotalQq) : null;
+        f.porcentajeAsesoramiento != null
+          ? num(f.porcentajeAsesoramiento)
+          : num(reporte.asesoramientoPorcentaje);
+      const produccionQq = f.produccion
+        ? num(f.produccion.prodNetaTotalQq)
+        : null;
       const precioQq = f.produccion ? num(f.produccion.precioXQq) : null;
-      const total = produccionQq != null && precioQq != null ? produccionQq * precioQq * pct : null;
+      const total =
+        produccionQq != null && precioQq != null
+          ? produccionQq * precioQq * pct
+          : null;
       if (total != null) totalSinIva += total;
 
       computadas.push({
         id: f.id,
         idLote: f.idLote,
-        loteNombre: f.lote?.descripcion || f.produccion?.lote?.descripcion || `Lote #${f.idLote}`,
+        loteNombre:
+          f.lote?.descripcion ||
+          f.produccion?.lote?.descripcion ||
+          `Lote #${f.idLote}`,
         idProduccion: f.idProduccion,
-        cultivoNombre: f.produccion?.cultivo?.nombre || `Cultivo #${f.produccion?.idCultivo}`,
+        cultivoNombre:
+          f.produccion?.cultivo?.nombre ||
+          `Cultivo #${f.produccion?.idCultivo}`,
         produccionQq,
         precioQq,
         porcentajeAsesoramiento: pct,
@@ -406,44 +467,72 @@ export class ReportesService {
   // ---------------------------------------------------------------------------
   // Validación
   // ---------------------------------------------------------------------------
-  private async validarYNormalizar(dto: CreateReporteDto, user: any): Promise<{ reporte: Reporte }> {
+  private async validarYNormalizar(
+    dto: CreateReporteDto,
+    user: any,
+  ): Promise<{ reporte: Reporte }> {
     const isAdmin = esAdmin(user);
     const userEmpresas = empresasDelUsuario(user);
 
     if (!isAdmin && !userEmpresas.includes(dto.idEmpresa)) {
-      throw new ForbiddenException('No tiene permisos para generar reportes para este productor');
+      throw new ForbiddenException(
+        "No tiene permisos para generar reportes para este productor",
+      );
     }
-    const empresa = await this.empresaRepo.findOne({ where: { id: dto.idEmpresa, activo: true } });
-    if (!empresa) throw new BadRequestException('El productor indicado no existe');
+    const empresa = await this.empresaRepo.findOne({
+      where: { id: dto.idEmpresa, activo: true },
+    });
+    if (!empresa)
+      throw new BadRequestException("El productor indicado no existe");
 
     if (dto.filas.length === 0) {
-      throw new BadRequestException('Debe agregar al menos un lote al reporte');
+      throw new BadRequestException("Debe agregar al menos un lote al reporte");
     }
 
-    if (dto.tipo === 'detalle_asesoramiento' && !dto.tipoCosecha) {
-      throw new BadRequestException('Debe indicar el tipo de cosecha');
+    if (dto.tipo === "detalle_asesoramiento" && !dto.tipoCosecha) {
+      throw new BadRequestException("Debe indicar el tipo de cosecha");
     }
 
     for (const f of dto.filas) {
       const lote = await this.loteRepo.findOne({ where: { id: f.idLote } });
       if (!lote) throw new BadRequestException(`El lote ${f.idLote} no existe`);
       if (lote.idEmpresa !== dto.idEmpresa) {
-        throw new BadRequestException(`El lote ${lote.descripcion || lote.id} no pertenece al productor seleccionado`);
+        throw new BadRequestException(
+          `El lote ${lote.descripcion || lote.id} no pertenece al productor seleccionado`,
+        );
       }
 
-      if (dto.tipo === 'resumen_campania') {
+      if (dto.tipo === "resumen_campania") {
         if (f.idProduccionFina != null) {
-          await this.validarProduccion(f.idProduccionFina, 'fina', dto, f.idLote);
+          await this.validarProduccion(
+            f.idProduccionFina,
+            "fina",
+            dto,
+            f.idLote,
+          );
         }
         if (f.idProduccionGruesa != null) {
-          await this.validarProduccion(f.idProduccionGruesa, 'gruesa', dto, f.idLote);
+          await this.validarProduccion(
+            f.idProduccionGruesa,
+            "gruesa",
+            dto,
+            f.idLote,
+          );
         }
         if (f.idProduccionFina == null && f.idProduccionGruesa == null) {
-          throw new BadRequestException('Cada lote debe tener al menos una producción (fina o gruesa)');
+          throw new BadRequestException(
+            "Cada lote debe tener al menos una producción (fina o gruesa)",
+          );
         }
       } else {
-        if (f.idProduccion == null) throw new BadRequestException('Cada lote debe tener una producción');
-        await this.validarProduccion(f.idProduccion, dto.tipoCosecha!, dto, f.idLote);
+        if (f.idProduccion == null)
+          throw new BadRequestException("Cada lote debe tener una producción");
+        await this.validarProduccion(
+          f.idProduccion,
+          dto.tipoCosecha!,
+          dto,
+          f.idLote,
+        );
       }
     }
 
@@ -468,22 +557,32 @@ export class ReportesService {
   ) {
     const campania = await this.campaniaRepo.findOne({
       where: { id: idProduccion },
-      relations: ['lote', 'cultivo'],
+      relations: ["lote", "cultivo"],
     });
-    if (!campania) throw new BadRequestException(`La producción ${idProduccion} no existe`);
-    if (!campania.activo) throw new BadRequestException(`La producción ${idProduccion} no está activa`);
+    if (!campania)
+      throw new BadRequestException(`La producción ${idProduccion} no existe`);
+    if (!campania.activo)
+      throw new BadRequestException(
+        `La producción ${idProduccion} no está activa`,
+      );
     if (campania.campania !== dto.campania) {
-      throw new BadRequestException('La producción no corresponde a la campaña seleccionada');
+      throw new BadRequestException(
+        "La producción no corresponde a la campaña seleccionada",
+      );
     }
     if (campania.idLote !== idLote) {
-      throw new BadRequestException('La producción no corresponde al lote seleccionado');
+      throw new BadRequestException(
+        "La producción no corresponde al lote seleccionado",
+      );
     }
     if (campania.lote?.idEmpresa !== dto.idEmpresa) {
-      throw new BadRequestException('La producción no pertenece al productor seleccionado');
+      throw new BadRequestException(
+        "La producción no pertenece al productor seleccionado",
+      );
     }
     if (campania.cultivo?.tipoCosecha !== tipoCosecha) {
       throw new BadRequestException(
-        `La producción no corresponde a un cultivo de tipo ${tipoCosecha === 'fina' ? 'fina' : 'gruesa'}`,
+        `La producción no corresponde a un cultivo de tipo ${tipoCosecha === "fina" ? "fina" : "gruesa"}`,
       );
     }
   }
@@ -499,11 +598,18 @@ export class ReportesService {
   }
 
   private async reporteOrThrow(id: number, user: any): Promise<Reporte> {
-    const reporte = await this.reporteRepo.findOne({ where: { id, activo: true } });
-    if (!reporte) throw new NotFoundException('Reporte no encontrado');
+    const reporte = await this.reporteRepo.findOne({
+      where: { id, activo: true },
+    });
+    if (!reporte) throw new NotFoundException("Reporte no encontrado");
 
-    if (!esAdmin(user) && !empresasDelUsuario(user).includes(reporte.idEmpresa)) {
-      throw new ForbiddenException('No tiene permisos para acceder a este reporte');
+    if (
+      !esAdmin(user) &&
+      !empresasDelUsuario(user).includes(reporte.idEmpresa)
+    ) {
+      throw new ForbiddenException(
+        "No tiene permisos para acceder a este reporte",
+      );
     }
     return reporte;
   }

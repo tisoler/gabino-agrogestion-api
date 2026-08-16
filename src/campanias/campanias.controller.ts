@@ -11,34 +11,34 @@ import {
   Request,
   Res,
   UseGuards,
-} from '@nestjs/common';
-import { Response } from 'express';
+} from "@nestjs/common";
+import { Response } from "express";
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiQuery,
   ApiTags,
-} from '@nestjs/swagger';
-import { CampaniasService } from './campanias.service';
-import { buildCampaniaXls } from './campanias.export';
-import { CreateCampaniaDto } from './dto/create-campania.dto';
-import { UpdateCampaniaDto } from './dto/update-campania.dto';
+} from "@nestjs/swagger";
+import { CampaniasService } from "./campanias.service";
+import { buildCampaniaXls } from "./campanias.export";
+import { CreateCampaniaDto } from "./dto/create-campania.dto";
+import { UpdateCampaniaDto } from "./dto/update-campania.dto";
 import {
   CreateCampaniaDetalleCostoDto,
   CreateCampaniaDetalleInsumoDto,
   CreateCampaniaDetalleLaborDto,
-} from './dto/create-detalle.dto';
+} from "./dto/create-detalle.dto";
 import {
   UpdateCampaniaDetalleCostoDto,
   UpdateCampaniaDetalleInsumoDto,
   UpdateCampaniaDetalleLaborDto,
-} from './dto/update-detalle.dto';
-import { FirebaseGuard } from '../auth/guards/firebase.guard';
-import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+} from "./dto/update-detalle.dto";
+import { FirebaseGuard } from "../auth/guards/firebase.guard";
+import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { Permissions } from "../auth/decorators/permissions.decorator";
 
-@ApiTags('campanias')
-@Controller('campanias')
+@ApiTags("campanias")
+@Controller("campanias")
 @UseGuards(FirebaseGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class CampaniasController {
@@ -48,42 +48,77 @@ export class CampaniasController {
   // Cabecera
   // ---------------------------------------------------------------------------
   @Post()
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Crear una nueva campaña' })
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Crear una nueva campaña" })
   create(@Body() dto: CreateCampaniaDto, @Request() req) {
     return this.service.create(dto, req.user, req.user.currentEmpresaId);
   }
 
   @Get()
-  @Permissions('lectura:campania')
-  @ApiOperation({ summary: 'Listar campañas con filtros' })
-  @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number })
-  @ApiQuery({ name: 'empresaIds', required: false, description: 'IDs de productores separados por coma' })
-  @ApiQuery({ name: 'campanias', required: false, description: 'Períodos separados por coma (ej: 25/26,26/27)' })
-  @ApiQuery({ name: 'idCampo', required: false, description: 'IDs de campos separados por coma (0 = sin campo)' })
-  @ApiQuery({ name: 'idCultivo', required: false, description: 'IDs de cultivos separados por coma' })
-  @ApiQuery({ name: 'idVariedad', required: false, description: 'IDs de variedades separados por coma' })
-  @ApiQuery({ name: 'idLote', required: false, description: 'IDs de lotes separados por coma' })
+  @Permissions("lectura:campania")
+  @ApiOperation({ summary: "Listar campañas con filtros" })
+  @ApiQuery({ name: "currentEmpresaId", required: false, type: Number })
+  @ApiQuery({
+    name: "empresaIds",
+    required: false,
+    description: "IDs de productores separados por coma",
+  })
+  @ApiQuery({
+    name: "campanias",
+    required: false,
+    description: "Períodos separados por coma (ej: 25/26,26/27)",
+  })
+  @ApiQuery({
+    name: "idCampo",
+    required: false,
+    description: "IDs de campos separados por coma (0 = sin campo)",
+  })
+  @ApiQuery({
+    name: "idCultivo",
+    required: false,
+    description: "IDs de cultivos separados por coma",
+  })
+  @ApiQuery({
+    name: "idVariedad",
+    required: false,
+    description: "IDs de variedades separados por coma",
+  })
+  @ApiQuery({
+    name: "idLote",
+    required: false,
+    description: "IDs de lotes separados por coma",
+  })
   findAll(
     @Request() req,
-    @Query('currentEmpresaId') currentEmpresaId?: string,
-    @Query('empresaIds') empresaIds?: string,
-    @Query('campanias') campanias?: string,
-    @Query('idCampo') idCampo?: string,
-    @Query('idCultivo') idCultivo?: string,
-    @Query('idVariedad') idVariedad?: string,
-    @Query('idLote') idLote?: string,
+    @Query("currentEmpresaId") currentEmpresaId?: string,
+    @Query("empresaIds") empresaIds?: string,
+    @Query("campanias") campanias?: string,
+    @Query("idCampo") idCampo?: string,
+    @Query("idCultivo") idCultivo?: string,
+    @Query("idVariedad") idVariedad?: string,
+    @Query("idLote") idLote?: string,
   ) {
     const parseIds = (s?: string): number[] | undefined =>
       s
-        ? s.split(',').map((n) => Number(n.trim())).filter((n) => Number.isFinite(n))
+        ? s
+            .split(",")
+            .map((n) => Number(n.trim()))
+            .filter((n) => Number.isFinite(n))
         : undefined;
     return this.service.findAll(req.user, {
       currentEmpresaId: currentEmpresaId ? Number(currentEmpresaId) : undefined,
       empresaIds: empresaIds
-        ? empresaIds.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))
+        ? empresaIds
+            .split(",")
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isFinite(n))
         : undefined,
-      campanias: campanias ? campanias.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      campanias: campanias
+        ? campanias
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined,
       idCampo: parseIds(idCampo),
       idCultivo: parseIds(idCultivo),
       idVariedad: parseIds(idVariedad),
@@ -91,18 +126,18 @@ export class CampaniasController {
     });
   }
 
-  @Get(':id')
-  @Permissions('lectura:campania')
-  @ApiOperation({ summary: 'Obtener una campaña con todos sus detalles' })
-  findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  @Get(":id")
+  @Permissions("lectura:campania")
+  @ApiOperation({ summary: "Obtener una campaña con todos sus detalles" })
+  findOne(@Param("id", ParseIntPipe) id: number, @Request() req) {
     return this.service.findOne(id, req.user);
   }
 
-  @Get(':id/export')
-  @Permissions('lectura:campania')
-  @ApiOperation({ summary: 'Exportar la campaña a archivo .xls' })
+  @Get(":id/export")
+  @Permissions("lectura:campania")
+  @ApiOperation({ summary: "Exportar la campaña a archivo .xls" })
   async exportXls(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Request() req,
     @Res() res: Response,
   ) {
@@ -111,69 +146,69 @@ export class CampaniasController {
 
     const nombreArchivo =
       (campania?.lote?.descripcion || `campania-${id}`)
-        .replace(/[\\/:*?"<>|]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim() + '.xls';
+        .replace(/[\\/:*?"<>|]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim() + ".xls";
 
-    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader("Content-Type", "application/vnd.ms-excel");
     res.setHeader(
-      'Content-Disposition',
+      "Content-Disposition",
       `attachment; filename="export-${nombreArchivo}"`,
     );
-    res.setHeader('Content-Length', buffer.length);
+    res.setHeader("Content-Length", buffer.length);
     res.send(buffer);
   }
 
-  @Patch(':id')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Actualizar la cabecera de una campaña' })
+  @Patch(":id")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Actualizar la cabecera de una campaña" })
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateCampaniaDto,
     @Request() req,
   ) {
     return this.service.update(id, dto, req.user);
   }
 
-  @Delete(':id')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Eliminar (soft) una campaña' })
-  remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  @Delete(":id")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Eliminar (soft) una campaña" })
+  remove(@Param("id", ParseIntPipe) id: number, @Request() req) {
     return this.service.remove(id, req.user);
   }
 
   // ---------------------------------------------------------------------------
   // Detalles: LABORES
   // ---------------------------------------------------------------------------
-  @Post(':id/labores')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Agregar una labor a la campaña' })
+  @Post(":id/labores")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Agregar una labor a la campaña" })
   addLabor(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() dto: CreateCampaniaDetalleLaborDto,
     @Request() req,
   ) {
     return this.service.addLabor(id, dto, req.user);
   }
 
-  @Patch(':id/labores/:detalleId')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Actualizar una labor de la campaña' })
+  @Patch(":id/labores/:detalleId")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Actualizar una labor de la campaña" })
   updateLabor(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("detalleId", ParseIntPipe) detalleId: number,
     @Body() dto: UpdateCampaniaDetalleLaborDto,
     @Request() req,
   ) {
     return this.service.updateLabor(id, detalleId, dto, req.user);
   }
 
-  @Delete(':id/labores/:detalleId')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Eliminar una labor de la campaña' })
+  @Delete(":id/labores/:detalleId")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Eliminar una labor de la campaña" })
   removeLabor(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("detalleId", ParseIntPipe) detalleId: number,
     @Request() req,
   ) {
     return this.service.removeLabor(id, detalleId, req.user);
@@ -182,35 +217,35 @@ export class CampaniasController {
   // ---------------------------------------------------------------------------
   // Detalles: INSUMOS
   // ---------------------------------------------------------------------------
-  @Post(':id/insumos')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Agregar un insumo a la campaña' })
+  @Post(":id/insumos")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Agregar un insumo a la campaña" })
   addInsumo(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() dto: CreateCampaniaDetalleInsumoDto,
     @Request() req,
   ) {
     return this.service.addInsumo(id, dto, req.user);
   }
 
-  @Patch(':id/insumos/:detalleId')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Actualizar un insumo de la campaña' })
+  @Patch(":id/insumos/:detalleId")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Actualizar un insumo de la campaña" })
   updateInsumo(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("detalleId", ParseIntPipe) detalleId: number,
     @Body() dto: UpdateCampaniaDetalleInsumoDto,
     @Request() req,
   ) {
     return this.service.updateInsumo(id, detalleId, dto, req.user);
   }
 
-  @Delete(':id/insumos/:detalleId')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Eliminar un insumo de la campaña' })
+  @Delete(":id/insumos/:detalleId")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Eliminar un insumo de la campaña" })
   removeInsumo(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("detalleId", ParseIntPipe) detalleId: number,
     @Request() req,
   ) {
     return this.service.removeInsumo(id, detalleId, req.user);
@@ -219,35 +254,35 @@ export class CampaniasController {
   // ---------------------------------------------------------------------------
   // Detalles: COSTOS VARIOS
   // ---------------------------------------------------------------------------
-  @Post(':id/costos')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Agregar un costo vario a la campaña' })
+  @Post(":id/costos")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Agregar un costo vario a la campaña" })
   addCosto(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() dto: CreateCampaniaDetalleCostoDto,
     @Request() req,
   ) {
     return this.service.addCosto(id, dto, req.user);
   }
 
-  @Patch(':id/costos/:detalleId')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Actualizar un costo vario de la campaña' })
+  @Patch(":id/costos/:detalleId")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Actualizar un costo vario de la campaña" })
   updateCosto(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("detalleId", ParseIntPipe) detalleId: number,
     @Body() dto: UpdateCampaniaDetalleCostoDto,
     @Request() req,
   ) {
     return this.service.updateCosto(id, detalleId, dto, req.user);
   }
 
-  @Delete(':id/costos/:detalleId')
-  @Permissions('escritura:campania')
-  @ApiOperation({ summary: 'Eliminar un costo vario de la campaña' })
+  @Delete(":id/costos/:detalleId")
+  @Permissions("escritura:campania")
+  @ApiOperation({ summary: "Eliminar un costo vario de la campaña" })
   removeCosto(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("detalleId", ParseIntPipe) detalleId: number,
     @Request() req,
   ) {
     return this.service.removeCosto(id, detalleId, req.user);

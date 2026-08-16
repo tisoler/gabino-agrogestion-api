@@ -1,23 +1,26 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // CORS
-  const corsOrigins =
-    process.env.CORS_ORIGINS?.split(',').map((origin) => origin.trim()).filter(Boolean) ?? [
-      'http://localhost:3063', 'http://localhost:5173', 'http://localhost:5174',
-    ];
+  const corsOrigins = process.env.CORS_ORIGINS?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? [
+    "http://localhost:3063",
+    "http://localhost:5173",
+    "http://localhost:5174",
+  ];
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
   });
 
   // Global prefix
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix("api");
 
   // Validation pipe
   //
@@ -38,13 +41,13 @@ async function bootstrap() {
 
   // Swagger
   const config = new DocumentBuilder()
-    .setTitle('Gabino Agrogestión API')
-    .setDescription('API para la gestión agraria Gabino Agrogestión')
-    .setVersion('1.0')
+    .setTitle("Gabino Agrogestión API")
+    .setDescription("API para la gestión agraria Gabino Agrogestión")
+    .setVersion("1.0")
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup("docs", app, document);
 
   const port = process.env.PORT || 3063;
   await app.listen(port);

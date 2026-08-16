@@ -1,15 +1,15 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
   Matches,
-} from 'class-validator';
+} from "class-validator";
 
 export class UpdateCampaniaDto {
-  @ApiPropertyOptional({ description: 'Período de la campaña (ej: 25/26)' })
+  @ApiPropertyOptional({ description: "Período de la campaña (ej: 25/26)" })
   @IsOptional()
   @IsString()
   @Matches(/^\d{2}\/\d{2}$/)

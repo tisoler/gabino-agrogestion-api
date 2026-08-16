@@ -1,8 +1,16 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { Empresa } from './empresa.entity';
-import { decimalColumn } from '../utils/decimal';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { Empresa } from "./empresa.entity";
+import { decimalColumn } from "../utils/decimal";
 
-@Entity('costo')
+@Entity("costo")
 export class Costo {
   @PrimaryGeneratedColumn()
   id: number;
@@ -13,27 +21,27 @@ export class Costo {
   @Column({ nullable: true })
   descripcion: string;
 
-  @Column({ name: 'id_empresa', nullable: true })
+  @Column({ name: "id_empresa", nullable: true })
   idEmpresa: number;
 
   @ManyToOne(() => Empresa, { nullable: true })
-  @JoinColumn({ name: 'id_empresa' })
+  @JoinColumn({ name: "id_empresa" })
   empresa: Empresa;
 
   @Column({
-    name: 'precio_unitario',
+    name: "precio_unitario",
     nullable: true,
     ...decimalColumn(),
   })
   precioUnitario: number | null;
 
-  @Column({ type: 'varchar', length: 20, nullable: true })
+  @Column({ type: "varchar", length: 20, nullable: true })
   unidad: string | null;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
   @Column({ default: true })

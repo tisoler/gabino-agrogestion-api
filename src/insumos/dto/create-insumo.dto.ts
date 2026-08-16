@@ -1,5 +1,5 @@
-import { IsString, IsOptional, IsInt, IsNumber, IsIn } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional, IsInt, IsNumber, IsIn } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateInsumoDto {
   @ApiProperty()
@@ -11,15 +11,22 @@ export class CreateInsumoDto {
   @IsOptional()
   descripcion?: string;
 
-  @ApiProperty({ required: false, description: 'Precio unitario de referencia' })
+  @ApiProperty({
+    required: false,
+    description: "Precio unitario de referencia",
+  })
   @IsNumber()
   @IsOptional()
   precioUnitario?: number;
 
-  @ApiProperty({ required: false, description: 'Unidad de medida del precio', enum: ['ton', 'kg', 'lt', 'unidad', 'ha', 'hr'] })
+  @ApiProperty({
+    required: false,
+    description: "Unidad de medida del precio",
+    enum: ["ton", "kg", "lt", "unidad", "ha", "hr"],
+  })
   @IsString()
   @IsOptional()
-  @IsIn(['ton', 'kg', 'lt', 'unidad', 'ha', 'hr'])
+  @IsIn(["ton", "kg", "lt", "unidad", "ha", "hr"])
   unidad?: string;
 
   @ApiProperty()

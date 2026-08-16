@@ -1,61 +1,108 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { CostosService } from './costos.service';
-import { CreateCostoDto } from './dto/create-costo.dto';
-import { UpdateCostoDto } from './dto/update-costo.dto';
-import { FirebaseGuard } from '../auth/guards/firebase.guard';
-import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+  ParseIntPipe,
+} from "@nestjs/common";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from "@nestjs/swagger";
+import { CostosService } from "./costos.service";
+import { CreateCostoDto } from "./dto/create-costo.dto";
+import { UpdateCostoDto } from "./dto/update-costo.dto";
+import { FirebaseGuard } from "../auth/guards/firebase.guard";
+import { PermissionsGuard } from "../auth/guards/permissions.guard";
+import { Permissions } from "../auth/decorators/permissions.decorator";
 
-@ApiTags('costos')
-@Controller('costos')
+@ApiTags("costos")
+@Controller("costos")
 @UseGuards(FirebaseGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class CostosController {
-  constructor(private readonly costosService: CostosService) { }
+  constructor(private readonly costosService: CostosService) {}
 
   @Post()
-  @Permissions('escritura:costo')
-  @ApiOperation({ summary: 'Crear un nuevo costo' })
+  @Permissions("escritura:costo")
+  @ApiOperation({ summary: "Crear un nuevo costo" })
   create(@Body() createCostoDto: CreateCostoDto, @Request() req) {
-    return this.costosService.create(createCostoDto, req.user, req.user.currentEmpresaId);
+    return this.costosService.create(
+      createCostoDto,
+      req.user,
+      req.user.currentEmpresaId,
+    );
   }
 
   @Get()
-  @Permissions('lectura:costo')
-  @ApiOperation({ summary: 'Listar todos los costos' })
-  @ApiQuery({ name: 'all', required: false, type: Boolean })
-  @ApiQuery({ name: 'companyIds', required: false, type: String, description: 'IDs de empresas separados por coma' })
-  @ApiQuery({ name: 'currentEmpresaId', required: false, type: Number, description: 'ID de la empresa actual' })
-  @ApiQuery({ name: 'soloActivos', required: false, type: Boolean, description: 'Si es true, filtra solo ítems activos' })
-  @ApiQuery({ name: 'scope', required: false, type: String, description: 'global | empresa (para no-admin)' })
+  @Permissions("lectura:costo")
+  @ApiOperation({ summary: "Listar todos los costos" })
+  @ApiQuery({ name: "all", required: false, type: Boolean })
+  @ApiQuery({
+    name: "companyIds",
+    required: false,
+    type: String,
+    description: "IDs de empresas separados por coma",
+  })
+  @ApiQuery({
+    name: "currentEmpresaId",
+    required: false,
+    type: Number,
+    description: "ID de la empresa actual",
+  })
+  @ApiQuery({
+    name: "soloActivos",
+    required: false,
+    type: Boolean,
+    description: "Si es true, filtra solo ítems activos",
+  })
+  @ApiQuery({
+    name: "scope",
+    required: false,
+    type: String,
+    description: "global | empresa (para no-admin)",
+  })
   findAll(
     @Request() req,
-    @Query('all') all?: string,
-    @Query('companyIds') companyIds?: string,
-    @Query('currentEmpresaId') currentEmpresaId?: number,
-    @Query('soloActivos') soloActivos?: string,
-    @Query('scope') scope?: string
+    @Query("all") all?: string,
+    @Query("companyIds") companyIds?: string,
+    @Query("currentEmpresaId") currentEmpresaId?: number,
+    @Query("soloActivos") soloActivos?: string,
+    @Query("scope") scope?: string,
   ) {
-    const showAll = all === 'true';
-    const onlyActive = soloActivos === 'true';
-    return this.costosService.findAll(req.user, showAll, companyIds, currentEmpresaId, onlyActive, scope);
+    const showAll = all === "true";
+    const onlyActive = soloActivos === "true";
+    return this.costosService.findAll(
+      req.user,
+      showAll,
+      companyIds,
+      currentEmpresaId,
+      onlyActive,
+      scope,
+    );
   }
 
-  @Get(':id')
-  @Permissions('lectura:costo')
-  @ApiOperation({ summary: 'Obtener un costo por id' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id")
+  @Permissions("lectura:costo")
+  @ApiOperation({ summary: "Obtener un costo por id" })
+  findOne(@Param("id", ParseIntPipe) id: number) {
     return this.costosService.findOne(id);
   }
 
-  @Patch(':id')
-  @Permissions('escritura:costo')
-  @ApiOperation({ summary: 'Actualizar un costo' })
+  @Patch(":id")
+  @Permissions("escritura:costo")
+  @ApiOperation({ summary: "Actualizar un costo" })
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateCostoDto: UpdateCostoDto,
-    @Request() req
+    @Request() req,
   ) {
     return this.costosService.update(id, updateCostoDto, req.user);
   }

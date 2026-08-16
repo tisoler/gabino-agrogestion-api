@@ -7,15 +7,15 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
-} from 'typeorm';
-import { Lote } from './lote.entity';
-import { Cultivo } from './cultivo.entity';
-import { Variedad } from './variedad.entity';
-import { CampaniaLabor } from './campania-labor.entity';
-import { CampaniaInsumo } from './campania-insumo.entity';
-import { CampaniaCosto } from './campania-costo.entity';
+} from "typeorm";
+import { Lote } from "./lote.entity";
+import { Cultivo } from "./cultivo.entity";
+import { Variedad } from "./variedad.entity";
+import { CampaniaLabor } from "./campania-labor.entity";
+import { CampaniaInsumo } from "./campania-insumo.entity";
+import { CampaniaCosto } from "./campania-costo.entity";
 
-@Entity('campania')
+@Entity("campania")
 export class Campania {
   @PrimaryGeneratedColumn()
   id: number;
@@ -24,49 +24,84 @@ export class Campania {
    * Período de la campaña (ej: "25/26"). Precargado en el FE con los períodos
    * válidos (desde 25/26 hasta el período actual).
    */
-  @Column({ type: 'varchar', length: 7 })
+  @Column({ type: "varchar", length: 7 })
   campania: string;
 
-  @Column({ name: 'id_lote' })
+  @Column({ name: "id_lote" })
   idLote: number;
 
   @ManyToOne(() => Lote, { eager: false })
-  @JoinColumn({ name: 'id_lote' })
+  @JoinColumn({ name: "id_lote" })
   lote: Lote;
 
-  @Column({ name: 'id_cultivo' })
+  @Column({ name: "id_cultivo" })
   idCultivo: number;
 
   @ManyToOne(() => Cultivo, { eager: false })
-  @JoinColumn({ name: 'id_cultivo' })
+  @JoinColumn({ name: "id_cultivo" })
   cultivo: Cultivo;
 
-  @Column({ name: 'id_variedad', nullable: true })
+  @Column({ name: "id_variedad", nullable: true })
   idVariedad: number | null;
 
   @ManyToOne(() => Variedad, { eager: false, nullable: true })
-  @JoinColumn({ name: 'id_variedad' })
+  @JoinColumn({ name: "id_variedad" })
   variedad: Variedad | null;
 
-  @Column('decimal', { name: 'sup_sembrada', precision: 14, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "sup_sembrada",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
   supSembrada: number | null;
 
-  @Column('decimal', { name: 'sup_cosechada', precision: 14, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "sup_cosechada",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
   supCosechada: number | null;
 
-  @Column('decimal', { name: 'prod_neta_total_qq', precision: 14, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "prod_neta_total_qq",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
   prodNetaTotalQq: number | null;
 
-  @Column('decimal', { name: 'precio_x_qq', precision: 14, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "precio_x_qq",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
   precioXQq: number | null;
 
-  @Column('decimal', { name: 'alquiler_qq_ha', precision: 14, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "alquiler_qq_ha",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
   alquilerQqHa: number | null;
 
-  @Column('decimal', { name: 'comercializacion_pct', precision: 7, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "comercializacion_pct",
+    precision: 7,
+    scale: 4,
+    nullable: true,
+  })
   comercializacionPct: number | null;
 
-  @Column('decimal', { name: 'cosecha_x_ha', precision: 14, scale: 4, nullable: true })
+  @Column("decimal", {
+    name: "cosecha_x_ha",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
   cosechaXHa: number | null;
 
   @OneToMany(() => CampaniaLabor, (cl) => cl.campania, { cascade: true })
@@ -78,10 +113,10 @@ export class Campania {
   @OneToMany(() => CampaniaCosto, (cc) => cc.campania, { cascade: true })
   costos: CampaniaCosto[];
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
   @Column({ default: true })

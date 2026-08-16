@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type } from "class-transformer";
 import {
   IsArray,
   IsBoolean,
@@ -11,8 +11,8 @@ import {
   Length,
   Min,
   ValidateNested,
-} from 'class-validator';
-import { TipoReporte, TipoCosecha } from '../../entities/reporte.entity';
+} from "class-validator";
+import { TipoReporte, TipoCosecha } from "../../entities/reporte.entity";
 
 export class ReporteFilaDto {
   @IsInt()
@@ -49,11 +49,11 @@ export class CreateReporteDto {
   @Length(1, 7)
   campania: string;
 
-  @IsIn(['resumen_campania', 'detalle_asesoramiento'])
+  @IsIn(["resumen_campania", "detalle_asesoramiento"])
   tipo: TipoReporte;
 
   @IsOptional()
-  @IsIn(['fina', 'gruesa'])
+  @IsIn(["fina", "gruesa"])
   tipoCosecha?: TipoCosecha;
 
   @IsOptional()

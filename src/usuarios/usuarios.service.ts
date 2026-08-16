@@ -1,12 +1,17 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as admin from 'firebase-admin';
-import { Empresa } from '../entities/empresa.entity';
-import { Lote } from '../entities/lote.entity';
-import { Roles, ID_ROL_PREDETERMINADO } from 'src/constantes';
-import type { UsuarioBasico } from '../empresas/empresas.service';
-import { FirestoreCacheService } from '../cache/firestore-cache.service';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import * as admin from "firebase-admin";
+import { Empresa } from "../entities/empresa.entity";
+import { Lote } from "../entities/lote.entity";
+import { Roles, ID_ROL_PREDETERMINADO } from "src/constantes";
+import type { UsuarioBasico } from "../empresas/empresas.service";
+import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 @Injectable()
 export class UsuariosService {
@@ -39,19 +44,27 @@ export class UsuariosService {
     remove: number[],
     user: any,
   ): Promise<UsuarioBasico> {
-    if (!uid || typeof uid !== 'string') {
-      throw new BadRequestException('uid es requerido');
+    if (!uid || typeof uid !== "string") {
+      throw new BadRequestException("uid es requerido");
     }
     if (add.length === 0 && remove.length === 0) {
-      throw new BadRequestException('Debe especificar al menos una empresa para agregar o quitar');
+      throw new BadRequestException(
+        "Debe especificar al menos una empresa para agregar o quitar",
+      );
     }
 
-    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN) || user.roles?.includes(Roles.ASESOR_ADMIN);
-    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) => Number(e));
+    const isAdmin =
+      user.roles?.includes(Roles.SYS_ADMIN) ||
+      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+      Number(e),
+    );
 
     // Un usuario no-admin (asesor) no puede desasociarse a sí mismo de una empresa.
     if (!isAdmin && uid === user.id && remove.length > 0) {
-      throw new ForbiddenException('No puede desasociarse a sí mismo de una empresa');
+      throw new ForbiddenException(
+        "No puede desasociarse a sí mismo de una empresa",
+      );
     }
 
     // Para no-sys-admin, las empresas a tocar deben estar en su idEmpresas
@@ -67,7 +80,9 @@ export class UsuariosService {
 
     // Verificar que cada empresa existe en la BD
     for (const empresaId of [...add, ...remove]) {
-      const empresa = await this.empresaRepository.findOne({ where: { id: empresaId } });
+      const empresa = await this.empresaRepository.findOne({
+        where: { id: empresaId },
+      });
       if (!empresa) {
         throw new NotFoundException(`Empresa ${empresaId} no encontrada`);
       }
@@ -77,20 +92,20 @@ export class UsuariosService {
     // cargados en esa empresa como dueño.
     if (remove.length > 0) {
       const lotesConDueno = await this.loteRepository
-        .createQueryBuilder('lote')
-        .where('lote.id_usuario = :uid', { uid })
-        .andWhere('lote.id_empresa IN (:...ids)', { ids: remove })
+        .createQueryBuilder("lote")
+        .where("lote.id_usuario = :uid", { uid })
+        .andWhere("lote.id_empresa IN (:...ids)", { ids: remove })
         .getCount();
       if (lotesConDueno > 0) {
         throw new BadRequestException(
-          'No se puede desasociar al usuario: tiene lotes cargados en la empresa como dueño',
+          "No se puede desasociar al usuario: tiene lotes cargados en la empresa como dueño",
         );
       }
     }
 
     // Leer el documento actual
     const db = admin.firestore();
-    const userRef = db.collection('usuarios').doc(uid);
+    const userRef = db.collection("usuarios").doc(uid);
     const userDoc = await userRef.get();
     if (!userDoc.exists) {
       throw new NotFoundException(`Usuario ${uid} no encontrado en Firestore`);
@@ -99,17 +114,19 @@ export class UsuariosService {
 
     // Un sys-admin nunca puede ser asociado a una empresa.
     if (add.length > 0) {
-      const rolesSnap = await db.collection('roles').get();
+      const rolesSnap = await db.collection("roles").get();
       const roleById = new Map<string, string>();
       for (const doc of rolesSnap.docs) {
         const nombre = doc.data()?.nombre;
-        if (typeof nombre === 'string' && nombre) {
+        if (typeof nombre === "string" && nombre) {
           roleById.set(doc.id, nombre);
         }
       }
       const targetRoles = this.resolveRoles(currentData, roleById);
       if (targetRoles.includes(Roles.SYS_ADMIN)) {
-        throw new ForbiddenException('Los sys-admins no pueden ser asociados a una empresa');
+        throw new ForbiddenException(
+          "Los sys-admins no pueden ser asociados a una empresa",
+        );
       }
     }
 
@@ -141,7 +158,8 @@ export class UsuariosService {
         auth?.displayName ??
         auth?.email ??
         uid,
-      photoURL: currentData?.picture ?? currentData?.photoURL ?? auth?.photoURL ?? null,
+      photoURL:
+        currentData?.picture ?? currentData?.photoURL ?? auth?.photoURL ?? null,
       roles: Array.isArray(currentData?.roles)
         ? currentData.roles.map((r: any) => String(r))
         : [],
@@ -160,11 +178,11 @@ export class UsuariosService {
   async bootstrapUsuario(user: any): Promise<{ ok: boolean }> {
     const uid = user.id;
     const db = admin.firestore();
-    const ref = db.collection('usuarios').doc(uid);
+    const ref = db.collection("usuarios").doc(uid);
 
     const snap = await ref.get();
     if (!snap.exists) {
-      let nombre = typeof user.email === 'string' ? user.email : '';
+      let nombre = typeof user.email === "string" ? user.email : "";
       try {
         const record = await admin.auth().getUser(uid);
         nombre = record.displayName || record.email || nombre;
@@ -202,7 +220,7 @@ export class UsuariosService {
     if (Array.isArray(data?.roles) && data.roles.length > 0) {
       return data.roles.map((r: any) => String(r));
     }
-    if (typeof data?.rol === 'string' && data.rol) {
+    if (typeof data?.rol === "string" && data.rol) {
       return [data.rol];
     }
     if (data?.idRol && roleById.has(data.idRol)) {
@@ -225,14 +243,16 @@ export class UsuariosService {
     return [];
   }
 
-  private async fetchAuthRecords(uids: string[]): Promise<Map<string, admin.auth.UserRecord>> {
+  private async fetchAuthRecords(
+    uids: string[],
+  ): Promise<Map<string, admin.auth.UserRecord>> {
     const result = new Map<string, admin.auth.UserRecord>();
     if (uids.length === 0) return result;
     try {
       const res = await admin.auth().getUsers(uids.map((uid) => ({ uid })));
       for (const rec of res.users) result.set(rec.uid, rec);
     } catch (err) {
-      console.warn('[usuarios] No se pudo enriquecer con Firebase Auth:', err);
+      console.warn("[usuarios] No se pudo enriquecer con Firebase Auth:", err);
     }
     return result;
   }

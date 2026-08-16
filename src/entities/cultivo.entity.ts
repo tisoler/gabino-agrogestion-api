@@ -1,7 +1,14 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Variedad } from './variedad.entity';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from "typeorm";
+import { Variedad } from "./variedad.entity";
 
-@Entity('cultivo')
+@Entity("cultivo")
 export class Cultivo {
   @PrimaryGeneratedColumn()
   id: number;
@@ -12,16 +19,16 @@ export class Cultivo {
   @Column({ nullable: true })
   descripcion: string;
 
-  @Column({ name: 'tipo_cosecha', type: 'varchar', length: 10, nullable: true })
+  @Column({ name: "tipo_cosecha", type: "varchar", length: 10, nullable: true })
   tipoCosecha: string;
 
-  @Column({ name: 'id_empresa', nullable: true })
+  @Column({ name: "id_empresa", nullable: true })
   idEmpresa: number;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
   @Column({ default: true })

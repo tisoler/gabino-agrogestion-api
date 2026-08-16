@@ -1,6 +1,6 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { IsInt, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class UpdateCampaniaDetalleLaborDto {
   @ApiPropertyOptional()
@@ -26,7 +26,9 @@ export class UpdateCampaniaDetalleLaborDto {
   @IsNumber()
   costoLaborHa?: number;
 
-  @ApiPropertyOptional({ description: 'Observaciones (p.ej. quién realizó la labor)' })
+  @ApiPropertyOptional({
+    description: "Observaciones (p.ej. quién realizó la labor)",
+  })
   @IsOptional()
   @IsString()
   observaciones?: string;
@@ -51,7 +53,7 @@ export class UpdateCampaniaDetalleInsumoDto {
   @IsNumber()
   costoUnidad?: number;
 
-  @ApiPropertyOptional({ description: 'Superficie aplicada (ha)' })
+  @ApiPropertyOptional({ description: "Superficie aplicada (ha)" })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

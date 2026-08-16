@@ -3,10 +3,9 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-} from '@nestjs/common';
-import * as admin from 'firebase-admin';
-import { Roles } from 'src/constantes';
-import { FirestoreCacheService } from '../../cache/firestore-cache.service';
+} from "@nestjs/common";
+import * as admin from "firebase-admin";
+import { FirestoreCacheService } from "../../cache/firestore-cache.service";
 
 /**
  * Guard para el endpoint SSE de notificaciones.
@@ -25,8 +24,8 @@ export class FirebaseSseGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const token = req.query?.token;
-    if (typeof token !== 'string' || token === '') {
-      throw new UnauthorizedException('Token no proporcionado');
+    if (typeof token !== "string" || token === "") {
+      throw new UnauthorizedException("Token no proporcionado");
     }
 
     try {
@@ -35,7 +34,7 @@ export class FirebaseSseGuard implements CanActivate {
 
       const authData = await this.cache.getOrLoadAuth(uid);
       if (!authData) {
-        throw new UnauthorizedException('Usuario no configurado en el sistema');
+        throw new UnauthorizedException("Usuario no configurado en el sistema");
       }
 
       req.user = {
@@ -50,8 +49,8 @@ export class FirebaseSseGuard implements CanActivate {
       return true;
     } catch (e) {
       if (e instanceof UnauthorizedException) throw e;
-      console.error('Error en FirebaseSseGuard:', e);
-      throw new UnauthorizedException('Error al validar token de Firebase');
+      console.error("Error en FirebaseSseGuard:", e);
+      throw new UnauthorizedException("Error al validar token de Firebase");
     }
   }
 }

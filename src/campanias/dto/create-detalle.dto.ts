@@ -1,6 +1,6 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { IsInt, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateCampaniaDetalleLaborDto {
   @ApiProperty()
@@ -8,7 +8,7 @@ export class CreateCampaniaDetalleLaborDto {
   @IsInt()
   idLabor: number;
 
-  @ApiProperty({ description: 'Fecha de la labor (YYYY-MM-DD)' })
+  @ApiProperty({ description: "Fecha de la labor (YYYY-MM-DD)" })
   @IsString()
   fecha: string;
 
@@ -22,7 +22,9 @@ export class CreateCampaniaDetalleLaborDto {
   @IsNumber()
   costoLaborHa: number;
 
-  @ApiPropertyOptional({ description: 'Observaciones (p.ej. quién realizó la labor)' })
+  @ApiPropertyOptional({
+    description: "Observaciones (p.ej. quién realizó la labor)",
+  })
   @IsOptional()
   @IsString()
   observaciones?: string;
@@ -44,7 +46,7 @@ export class CreateCampaniaDetalleInsumoDto {
   @IsNumber()
   costoUnidad: number;
 
-  @ApiProperty({ description: 'Superficie aplicada (ha)' })
+  @ApiProperty({ description: "Superficie aplicada (ha)" })
   @Type(() => Number)
   @IsNumber()
   superficieAplicada: number;

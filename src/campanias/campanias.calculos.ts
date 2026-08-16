@@ -66,7 +66,7 @@ export interface ResultadosCampania {
 
 const num = (v: number | string | null | undefined): number => {
   if (v === null || v === undefined) return 0;
-  const n = typeof v === 'string' ? parseFloat(v) : v;
+  const n = typeof v === "string" ? parseFloat(v) : v;
   return Number.isFinite(n) ? n : 0;
 };
 
@@ -84,15 +84,22 @@ export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
 
   const costoTotalLaboresHa = (c.labores || []).reduce((acc, l) => {
     if (supSembrada <= 0) return acc;
-    return acc + (num(l.costoLaborHa) * num(l.superficieLaboreada)) / supSembrada;
+    return (
+      acc + (num(l.costoLaborHa) * num(l.superficieLaboreada)) / supSembrada
+    );
   }, 0);
 
   const costoTotalInsumosHa = (c.insumos || []).reduce((acc, i) => {
     if (supSembrada <= 0) return acc;
-    return acc + (num(i.unidadesHa) * num(i.costoUnidad) * num(i.superficieAplicada)) / supSembrada;
+    return (
+      acc +
+      (num(i.unidadesHa) * num(i.costoUnidad) * num(i.superficieAplicada)) /
+        supSembrada
+    );
   }, 0);
   const costoTotalCostosHa = (c.costos || []).reduce(
-    (acc, k) => acc + num(k.unidadesHa) * num(k.costoUnidad), 0
+    (acc, k) => acc + num(k.unidadesHa) * num(k.costoUnidad),
+    0,
   );
 
   const totalCostosDirectosHa =

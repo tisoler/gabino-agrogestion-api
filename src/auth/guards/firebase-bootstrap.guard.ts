@@ -1,6 +1,11 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import * as admin from 'firebase-admin';
-import { ExtractJwt } from 'passport-jwt';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import * as admin from "firebase-admin";
+import { ExtractJwt } from "passport-jwt";
 
 /**
  * Guard para el bootstrap de usuarios nuevos (POST /usuarios/bootstrap).
@@ -14,7 +19,7 @@ export class FirebaseBootstrapGuard implements CanActivate {
     const req = context.switchToHttp().getRequest();
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
     if (!token) {
-      throw new UnauthorizedException('Token no proporcionado');
+      throw new UnauthorizedException("Token no proporcionado");
     }
     try {
       const decoded = await admin.auth().verifyIdToken(token);
@@ -25,7 +30,7 @@ export class FirebaseBootstrapGuard implements CanActivate {
       };
       return true;
     } catch {
-      throw new UnauthorizedException('Error al validar token de Firebase');
+      throw new UnauthorizedException("Error al validar token de Firebase");
     }
   }
 }

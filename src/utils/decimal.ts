@@ -1,4 +1,4 @@
-import type { ColumnOptions, ValueTransformer } from 'typeorm';
+import type { ColumnOptions, ValueTransformer } from "typeorm";
 
 export const decimalTransformer: ValueTransformer = {
   to: (value: number | null | undefined) => value ?? null,
@@ -6,5 +6,11 @@ export const decimalTransformer: ValueTransformer = {
 };
 
 export function decimalColumn(options: ColumnOptions = {}): ColumnOptions {
-  return { type: 'decimal', precision: 14, scale: 4, transformer: decimalTransformer, ...options };
+  return {
+    type: "decimal",
+    precision: 14,
+    scale: 4,
+    transformer: decimalTransformer,
+    ...options,
+  };
 }
