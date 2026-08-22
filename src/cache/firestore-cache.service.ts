@@ -219,11 +219,14 @@ export class FirestoreCacheService {
     if (Array.isArray(data?.roles) && data.roles.length > 0) {
       return data.roles.map((r: any) => String(r));
     }
-    if (typeof data?.rol === "string" && data.rol) {
-      return [data.rol];
+    if (data?.rol) {
+      return [String(data.rol)];
     }
-    if (data?.idRol && roleById.has(data.idRol)) {
-      return [roleById.get(data.idRol)!];
+    // `idRol` puede venir como número (ej. 4) aunque los doc-ids de la
+    // colección "roles" son strings; normalizar antes de buscar en el Map.
+    const idRolKey = data?.idRol != null ? String(data.idRol) : null;
+    if (idRolKey && roleById.has(idRolKey)) {
+      return [roleById.get(idRolKey)!];
     }
     return [];
   }
