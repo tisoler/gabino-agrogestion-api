@@ -169,11 +169,57 @@ export class PrescripcionesService {
   // Anular / recuperar (borrado lógico)
   // ---------------------------------------------------------------------------
   async setAnulada(id: number, anulada: boolean) {
-    const prescripcion = await this.prescripcionRepo.findOne({ where: { id } });
+    const prescripcion = await this.prescripcionRepo.findOne({
+      where: { id },
+      relations: {
+        labor: true,
+        insumos: { insumo: true },
+      },
+    });
     if (!prescripcion)
       throw new NotFoundException("Prescripción no encontrada");
-    prescripcion.anulada = anulada;
-    await this.prescripcionRepo.save(prescripcion);
+
+    await this.dataSource.transaction(async (manager) => {
+      const prescripcionRepo = manager.getRepository(Prescripcion);
+      const campaniaLaborRepo = manager.getRepository(CampaniaLabor);
+      const campaniaInsumoRepo = manager.getRepository(CampaniaInsumo);
+
+      // Al anular o recuperar se quitan/regeneran la labor y los insumos que
+      // esta prescripción aporta a la producción (campania_labor /
+      // campania_insumo), identificados por idPrescripcion.
+      await campaniaLaborRepo.delete({ idPrescripcion: id });
+      await campaniaInsumoRepo.delete({ idPrescripcion: id });
+
+      if (!anulada) {
+        // Recuperar: reconstruir las filas como al crear la prescripción
+        // (mismos valores que CreatePrescripcionDto propagaba a la campaña).
+        const laborRel = campaniaLaborRepo.create({
+          idCampania: prescripcion.idCampania,
+          idLabor: prescripcion.idLabor,
+          fecha: prescripcion.fecha,
+          superficieLaboreada: prescripcion.totalHaAplicacion,
+          costoLaborHa: prescripcion.labor?.precioUnitario ?? 0,
+          idPrescripcion: prescripcion.id,
+        });
+        await campaniaLaborRepo.save(laborRel);
+
+        const totalHa = prescripcion.totalHaAplicacion;
+        for (const i of prescripcion.insumos ?? []) {
+          const rel = campaniaInsumoRepo.create({
+            idCampania: prescripcion.idCampania,
+            idInsumo: i.idInsumo,
+            unidadesHa: i.cantidadPorHa,
+            costoUnidad: i.insumo?.precioUnitario ?? 0,
+            superficieAplicada: totalHa,
+            idPrescripcion: prescripcion.id,
+          });
+          await campaniaInsumoRepo.save(rel);
+        }
+      }
+
+      await prescripcionRepo.update(id, { anulada });
+    });
+
     return { id, anulada };
   }
 
@@ -184,7 +230,7 @@ export class PrescripcionesService {
     const prescripcion = await this.prescripcionRepo.findOne({
       where: { id },
       relations: {
-        campania: { lote: true, cultivo: true, variedad: true },
+        campania: { lote: { campo: true }, cultivo: true, variedad: true },
         labor: true,
         insumos: { insumo: true },
       },
