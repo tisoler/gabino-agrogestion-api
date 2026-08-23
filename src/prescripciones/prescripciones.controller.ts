@@ -117,8 +117,8 @@ export class PrescripcionesController {
   @Get(":id")
   @Permissions("lectura:prescripcion")
   @ApiOperation({ summary: "Obtener una prescripción con sus insumos" })
-  findOne(@Param("id", ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  findOne(@Param("id", ParseIntPipe) id: number, @Request() req) {
+    return this.service.findOne(id, req.user);
   }
 
   @Patch(":id/anulada")
@@ -129,7 +129,8 @@ export class PrescripcionesController {
   setAnulada(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateAnuladaDto,
+    @Request() req,
   ) {
-    return this.service.setAnulada(id, dto.anulada);
+    return this.service.setAnulada(id, dto.anulada, req.user);
   }
 }

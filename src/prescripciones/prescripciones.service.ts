@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -168,16 +169,22 @@ export class PrescripcionesService {
   // ---------------------------------------------------------------------------
   // Anular / recuperar (borrado lógico)
   // ---------------------------------------------------------------------------
-  async setAnulada(id: number, anulada: boolean) {
+  async setAnulada(id: number, anulada: boolean, user: any) {
     const prescripcion = await this.prescripcionRepo.findOne({
       where: { id },
       relations: {
+        campania: { lote: true },
         labor: true,
         insumos: { insumo: true },
       },
     });
     if (!prescripcion)
       throw new NotFoundException("Prescripción no encontrada");
+    this.assertEmpresaAcceso(
+      prescripcion.campania?.lote?.idEmpresa,
+      user,
+      "modificar esta prescripción",
+    );
 
     await this.dataSource.transaction(async (manager) => {
       const prescripcionRepo = manager.getRepository(Prescripcion);
@@ -226,7 +233,7 @@ export class PrescripcionesService {
   // ---------------------------------------------------------------------------
   // Detalle
   // ---------------------------------------------------------------------------
-  async findOne(id: number) {
+  async findOne(id: number, user: any) {
     const prescripcion = await this.prescripcionRepo.findOne({
       where: { id },
       relations: {
@@ -238,6 +245,11 @@ export class PrescripcionesService {
     });
     if (!prescripcion)
       throw new NotFoundException("Prescripción no encontrada");
+    this.assertEmpresaAcceso(
+      prescripcion.campania?.lote?.idEmpresa,
+      user,
+      "ver esta prescripción",
+    );
     return prescripcion;
   }
 
@@ -253,6 +265,11 @@ export class PrescripcionesService {
       throw new BadRequestException("La campaña indicada no existe");
     if (!campania.lote)
       throw new BadRequestException("La campaña no tiene lote asignado");
+    this.assertEmpresaAcceso(
+      campania.lote.idEmpresa,
+      user,
+      "crear prescripciones en esta campaña",
+    );
 
     const labor = await this.laborRepo.findOne({ where: { id: dto.idLabor } });
     if (!labor) throw new BadRequestException("La labor indicada no existe");
@@ -329,7 +346,32 @@ export class PrescripcionesService {
     });
 
     await this.notificarNuevaPrescripcion(result, campania, user);
-    return this.findOne(result);
+    return this.findOne(result, user);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Acceso por empresa
+  // ---------------------------------------------------------------------------
+  /**
+   * Los admins (sys-admin / asesor-admin) acceden a todo; el resto sólo a
+   * prescripciones de campañas cuyo lote pertenece a una de sus empresas
+   * (mismo patrón que assertCampaniaAcceso de campañas).
+   */
+  private assertEmpresaAcceso(
+    idEmpresa: number | null | undefined,
+    user: any,
+    accion: string,
+  ) {
+    const isAdmin =
+      user.roles?.includes(Roles.SYS_ADMIN) ||
+      user.roles?.includes(Roles.ASESOR_ADMIN);
+    if (isAdmin) return;
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+      Number(e),
+    );
+    if (idEmpresa == null || !userEmpresas.includes(idEmpresa)) {
+      throw new ForbiddenException(`No tiene permisos para ${accion}`);
+    }
   }
 
   // ---------------------------------------------------------------------------

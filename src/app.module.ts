@@ -16,6 +16,7 @@ import { PrescripcionesModule } from "./prescripciones/prescripciones.module";
 import { CotizacionesModule } from "./cotizaciones/cotizaciones.module";
 import { NotificacionesModule } from "./notificaciones/notificaciones.module";
 import { ReportesModule } from "./reportes/reportes.module";
+import { MensajesMasivosModule } from "./mensajes-masivos/mensajes-masivos.module";
 import { CacheModule } from "./cache/cache.module";
 
 import { Empresa } from "./entities/empresa.entity";
@@ -36,6 +37,7 @@ import { PrescripcionInsumo } from "./entities/prescripcion-insumo.entity";
 import { Notificacion } from "./entities/notificacion.entity";
 import { Reporte } from "./entities/reporte.entity";
 import { ReporteFila } from "./entities/reporte-fila.entity";
+import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
 
 @Module({
   imports: [
@@ -70,6 +72,7 @@ import { ReporteFila } from "./entities/reporte-fila.entity";
           Notificacion,
           Reporte,
           ReporteFila,
+          MensajeMasivo,
         ],
         synchronize: false, // Migraciones manuales
         logging: true,
@@ -91,6 +94,7 @@ import { ReporteFila } from "./entities/reporte-fila.entity";
     CotizacionesModule,
     NotificacionesModule,
     ReportesModule,
+    MensajesMasivosModule,
     CacheModule,
   ],
 })
