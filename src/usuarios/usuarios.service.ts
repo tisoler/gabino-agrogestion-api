@@ -160,6 +160,7 @@ export class UsuariosService {
         uid,
       photoURL:
         currentData?.picture ?? currentData?.photoURL ?? auth?.photoURL ?? null,
+      celular: this.leerCelular(currentData),
       roles: Array.isArray(currentData?.roles)
         ? currentData.roles.map((r: any) => String(r))
         : [],
@@ -169,13 +170,17 @@ export class UsuariosService {
 
   /**
    * Bootstrap de usuarios nuevos (signup): crea el documento `usuarios/{uid}`
-   * en Firestore si no existe, con el rol por defecto y el nombre de la cuenta
-   * (displayName o email de Firebase Auth). No pisa documentos existentes.
+   * en Firestore si no existe, con el rol por defecto, el nombre de la cuenta
+   * (displayName o email de Firebase Auth) y el celular opcional que el usuario
+   * cargó en el formulario de registro. No pisa documentos existentes.
    *
    * El BE usa el admin SDK (ignora las reglas de seguridad del cliente) y
    * después invalida los caches para que el usuario nuevo aparezca de inmediato.
    */
-  async bootstrapUsuario(user: any): Promise<{ ok: boolean }> {
+  async bootstrapUsuario(
+    user: any,
+    celularRaw?: string,
+  ): Promise<{ ok: boolean }> {
     const uid = user.id;
     const db = admin.firestore();
     const ref = db.collection("usuarios").doc(uid);
@@ -189,12 +194,112 @@ export class UsuariosService {
       } catch {
         /* sin acceso a Auth: seguimos con el email */
       }
-      await ref.set({ idRol: ID_ROL_PREDETERMINADO, nombre });
+      const doc: Record<string, unknown> = {
+        idRol: ID_ROL_PREDETERMINADO,
+        nombre,
+      };
+      const celular = this.normalizarCelular(celularRaw);
+      if (celular) doc.celular = celular;
+      await ref.set(doc);
     }
 
     this.cache.invalidateUser(uid);
     this.cache.invalidateAll();
     return { ok: true };
+  }
+
+  /**
+   * Agrega/edita el celular (WhatsApp) de un usuario, guardándolo en su
+   * documento `usuarios/{uid}` de Firestore. Enviar string vacío para borrarlo.
+   *
+   * Reglas:
+   *  - El destinatario no puede ser sys-admin (la edición es para usuarios
+   *    con rol asesor/productor).
+   *  - sys-admin / asesor-admin: pueden tocar cualquier usuario.
+   *  - asesor: puede tocar su propio celular o el de usuarios que compartan
+   *    alguna de sus idEmpresas.
+   *
+   * Invalida los caches tras guardar para que el cambio se vea de inmediato.
+   */
+  async updateCelular(
+    uid: string,
+    celularRaw: string | undefined,
+    user: any,
+  ): Promise<UsuarioBasico> {
+    if (!uid || typeof uid !== "string") {
+      throw new BadRequestException("uid es requerido");
+    }
+    // String vacío o ausente borra el celular; si viene algo, debe ser válido.
+    const celular = celularRaw?.trim()
+      ? this.normalizarCelular(celularRaw)
+      : null;
+
+    const db = admin.firestore();
+    const userRef = db.collection("usuarios").doc(uid);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      throw new NotFoundException(`Usuario ${uid} no encontrado en Firestore`);
+    }
+    const currentData = userDoc.data() || {};
+
+    // El destinatario no puede ser sys-admin.
+    const rolesSnap = await db.collection("roles").get();
+    const roleById = new Map<string, string>();
+    for (const doc of rolesSnap.docs) {
+      const nombre = doc.data()?.nombre;
+      if (typeof nombre === "string" && nombre) {
+        roleById.set(doc.id, nombre);
+      }
+    }
+    const targetRoles = this.resolveRoles(currentData, roleById);
+    if (targetRoles.includes(Roles.SYS_ADMIN)) {
+      throw new ForbiddenException(
+        "No se puede editar el celular de un sys-admin",
+      );
+    }
+
+    // Autorización: admin puede tocar a cualquiera; el resto sólo a sí mismo
+    // o a usuarios de sus propias empresas.
+    const isAdmin =
+      user.roles?.includes(Roles.SYS_ADMIN) ||
+      user.roles?.includes(Roles.ASESOR_ADMIN);
+    if (!isAdmin && uid !== user.id) {
+      const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+        Number(e),
+      );
+      const targetEmpresas = this.resolveCurrentIdEmpresas(currentData);
+      const comparte = targetEmpresas.some((e) => userEmpresas.includes(e));
+      if (!comparte) {
+        throw new ForbiddenException(
+          "No tiene permisos para editar el celular de este usuario",
+        );
+      }
+    }
+
+    await userRef.update({ celular });
+
+    // El listado cacheado incluye el celular: invalidar para verlo de inmediato.
+    this.cache.invalidateUser(uid);
+    this.cache.invalidateAll();
+
+    const authMap = await this.fetchAuthRecords([uid]);
+    const auth = authMap.get(uid);
+
+    return {
+      uid,
+      email: auth?.email ?? currentData?.email ?? null,
+      nombreUsuario:
+        currentData?.nombre ??
+        currentData?.nombreUsuario ??
+        auth?.displayName ??
+        auth?.email ??
+        uid,
+      photoURL:
+        currentData?.picture ?? currentData?.photoURL ?? auth?.photoURL ?? null,
+      celular,
+      roles: targetRoles,
+      idEmpresas: this.resolveCurrentIdEmpresas(currentData),
+    };
   }
 
   /**
@@ -214,6 +319,30 @@ export class UsuariosService {
    */
   async findCandidatos(): Promise<UsuarioBasico[]> {
     return this.cache.getOrLoadUsuarios();
+  }
+
+  /**
+   * Normaliza un celular a formato internacional E.164 (ej: +5491122334455).
+   * Acepta espacios, guiones y paréntesis; exige "+" inicial y 8-15 dígitos.
+   * Devuelve null si viene ausente/vacío (campo opcional).
+   */
+  private normalizarCelular(raw?: string): string | null {
+    if (typeof raw !== "string") return null;
+    const limpio = raw.replace(/[\s\-().]/g, "");
+    if (limpio === "") return null;
+    if (!/^\+\d{8,15}$/.test(limpio)) {
+      throw new BadRequestException(
+        "El celular debe estar en formato internacional, ej: +5491122334455",
+      );
+    }
+    return limpio;
+  }
+
+  /** Lee el celular guardado en un doc de Firestore (tolerante a ausentes). */
+  private leerCelular(data: any): string | null {
+    return typeof data?.celular === "string" && data.celular.trim() !== ""
+      ? data.celular.trim()
+      : null;
   }
 
   private resolveRoles(data: any, roleById: Map<string, string>): string[] {

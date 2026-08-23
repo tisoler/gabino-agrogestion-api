@@ -17,6 +17,7 @@ export interface UsuarioBasico {
   email: string | null;
   nombreUsuario: string | null;
   photoURL: string | null;
+  celular: string | null;
   roles: string[];
   idEmpresas: number[];
 }

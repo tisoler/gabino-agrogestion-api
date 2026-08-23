@@ -13,12 +13,14 @@ import { Lote } from "../entities/lote.entity";
 import { Campania } from "../entities/campania.entity";
 import { Roles } from "../constantes";
 import { calcularResultados } from "../campanias/campanias.calculos";
+import { CotizacionesService } from "../cotizaciones/cotizaciones.service";
 import { CreateReporteDto, ReporteFilaDto } from "./dto/create-reporte.dto";
 
 export interface ResumenFilaCalculada {
   id: number | null;
   idLote: number;
   loteNombre: string;
+  campoNombre: string | null;
   idProduccionFina: number | null;
   cultivoFinaNombre: string | null;
   idProduccionGruesa: number | null;
@@ -32,6 +34,7 @@ export interface DetalleFilaCalculada {
   id: number | null;
   idLote: number;
   loteNombre: string;
+  campoNombre: string | null;
   idProduccion: number | null;
   cultivoNombre: string;
   produccionQq: number | null;
@@ -69,6 +72,7 @@ export interface ProduccionCandidata {
   id: number;
   idLote: number;
   loteDescripcion: string;
+  campoNombre: string | null;
   idCultivo: number;
   cultivoNombre: string;
   tipoCosecha: TipoCosecha | null;
@@ -78,8 +82,14 @@ export interface ProduccionCandidata {
   precioXQq: number;
 }
 
+export interface ProduccionLote {
+  id: number;
+  descripcion: string | null;
+  campoNombre: string | null;
+}
+
 export interface ProduccionesReporte {
-  lotes: Array<{ id: number; descripcion: string | null }>;
+  lotes: ProduccionLote[];
   producciones: ProduccionCandidata[];
 }
 
@@ -108,6 +118,7 @@ export class ReportesService {
     @InjectRepository(Empresa) private empresaRepo: Repository<Empresa>,
     @InjectRepository(Lote) private loteRepo: Repository<Lote>,
     @InjectRepository(Campania) private campaniaRepo: Repository<Campania>,
+    private cotizaciones: CotizacionesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -230,23 +241,36 @@ export class ReportesService {
 
     const campanias = await this.campaniaRepo.find({
       where: { campania, activo: true },
-      relations: ["lote", "cultivo", "labores", "insumos", "costos"],
+      relations: {
+        lote: { campo: true },
+        cultivo: true,
+        labores: true,
+        insumos: true,
+        costos: true,
+      },
     });
 
     const delProductor = campanias.filter(
       (c) => c.lote?.idEmpresa === empresaId,
     );
 
-    const lotes = new Map<number, string | null>();
+    const dolarInsumo = await this.obtenerDolarVenta();
+
+    const lotes = new Map<number, ProduccionLote>();
     const producciones: ProduccionCandidata[] = [];
 
     for (const c of delProductor) {
-      lotes.set(c.idLote, c.lote?.descripcion ?? null);
-      const m = this.margenDe(c);
+      lotes.set(c.idLote, {
+        id: c.idLote,
+        descripcion: c.lote?.descripcion ?? null,
+        campoNombre: c.lote?.campo?.nombre ?? null,
+      });
+      const m = this.margenDe(c, dolarInsumo);
       producciones.push({
         id: c.id,
         idLote: c.idLote,
         loteDescripcion: c.lote?.descripcion || `Lote #${c.idLote}`,
+        campoNombre: c.lote?.campo?.nombre ?? null,
         idCultivo: c.idCultivo,
         cultivoNombre: c.cultivo?.nombre || `Cultivo #${c.idCultivo}`,
         tipoCosecha: (c.cultivo?.tipoCosecha as TipoCosecha | null) ?? null,
@@ -261,7 +285,7 @@ export class ReportesService {
       a.loteDescripcion.localeCompare(b.loteDescripcion, "es"),
     );
     const lotesArray = Array.from(lotes.entries())
-      .map(([id, descripcion]) => ({ id, descripcion }))
+      .map(([, lote]) => lote)
       .sort((a, b) =>
         (a.descripcion || "").localeCompare(b.descripcion || "", "es"),
       );
@@ -280,24 +304,24 @@ export class ReportesService {
     const filas = await this.filaRepo.find({
       where: { idReporte: id },
       relations: {
-        lote: true,
+        lote: { campo: true },
         produccion: {
           cultivo: true,
-          lote: true,
+          lote: { campo: true },
           labores: true,
           insumos: true,
           costos: true,
         },
         produccionFina: {
           cultivo: true,
-          lote: true,
+          lote: { campo: true },
           labores: true,
           insumos: true,
           costos: true,
         },
         produccionGruesa: {
           cultivo: true,
-          lote: true,
+          lote: { campo: true },
           labores: true,
           insumos: true,
           costos: true,
@@ -318,14 +342,15 @@ export class ReportesService {
     filas: ReporteFila[],
   ): Promise<ReporteCalculado> {
     if (reporte.tipo === "resumen_campania") {
+      const dolarInsumo = await this.obtenerDolarVenta();
       const computadas: ResumenFilaCalculada[] = [];
       let superficieTotal = 0;
       let margenTotal = 0;
       let precioSoja: number | null = null;
 
       for (const f of filas) {
-        const mFina = this.margenDe(f.produccionFina);
-        const mGruesa = this.margenDe(f.produccionGruesa);
+        const mFina = this.margenDe(f.produccionFina, dolarInsumo);
+        const mGruesa = this.margenDe(f.produccionGruesa, dolarInsumo);
 
         const superficie = mFina?.supSembrada ?? mGruesa?.supSembrada ?? 0;
         const margenLote =
@@ -345,6 +370,11 @@ export class ReportesService {
             f.produccionFina?.lote?.descripcion ||
             f.produccionGruesa?.lote?.descripcion ||
             `Lote #${f.idLote}`,
+          campoNombre:
+            f.lote?.campo?.nombre ??
+            f.produccionFina?.lote?.campo?.nombre ??
+            f.produccionGruesa?.lote?.campo?.nombre ??
+            null,
           idProduccionFina: f.idProduccionFina,
           cultivoFinaNombre: f.produccionFina?.cultivo?.nombre ?? null,
           idProduccionGruesa: f.idProduccionGruesa,
@@ -406,6 +436,8 @@ export class ReportesService {
           f.lote?.descripcion ||
           f.produccion?.lote?.descripcion ||
           `Lote #${f.idLote}`,
+        campoNombre:
+          f.lote?.campo?.nombre ?? f.produccion?.lote?.campo?.nombre ?? null,
         idProduccion: f.idProduccion,
         cultivoNombre:
           f.produccion?.cultivo?.nombre ||
@@ -439,29 +471,45 @@ export class ReportesService {
     };
   }
 
-  private margenDe(c: Campania | null): {
+  private margenDe(
+    c: Campania | null,
+    dolarInsumo = 1,
+  ): {
     margenBrutoSAlquilerLote: number;
     supSembrada: number;
     precioXQq: number;
   } | null {
     if (!c) return null;
-    const r = calcularResultados({
-      supSembrada: num(c.supSembrada),
-      supCosechada: num(c.supCosechada),
-      prodNetaTotalQq: num(c.prodNetaTotalQq),
-      precioXQq: num(c.precioXQq),
-      comercializacionPct: num(c.comercializacionPct),
-      cosechaXHa: num(c.cosechaXHa),
-      alquilerQqHa: num(c.alquilerQqHa),
-      labores: c.labores || [],
-      insumos: c.insumos || [],
-      costos: c.costos || [],
-    });
+    const r = calcularResultados(
+      {
+        supSembrada: num(c.supSembrada),
+        supCosechada: num(c.supCosechada),
+        prodNetaTotalQq: num(c.prodNetaTotalQq),
+        precioXQq: num(c.precioXQq),
+        comercializacionPct: num(c.comercializacionPct),
+        cosechaXHa: num(c.cosechaXHa),
+        alquilerQqHa: num(c.alquilerQqHa),
+        labores: c.labores || [],
+        insumos: c.insumos || [],
+        costos: c.costos || [],
+      },
+      dolarInsumo,
+    );
     return {
       margenBrutoSAlquilerLote: r.margenBrutoSAlquilerLote,
       supSembrada: num(c.supSembrada),
       precioXQq: num(c.precioXQq),
     };
+  }
+
+  /** Dólar venta para convertir los costos de insumos (USD) a pesos. */
+  private async obtenerDolarVenta(): Promise<number> {
+    try {
+      const { venta } = await this.cotizaciones.getDolarBNA();
+      return Number.isFinite(venta) && venta > 0 ? venta : 1;
+    } catch {
+      return 1;
+    }
   }
 
   // ---------------------------------------------------------------------------

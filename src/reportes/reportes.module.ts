@@ -9,6 +9,7 @@ import { Campania } from "../entities/campania.entity";
 import { ReportesController } from "./reportes.controller";
 import { ReportesService } from "./reportes.service";
 import { AuthModule } from "../auth/auth.module";
+import { CotizacionesModule } from "../cotizaciones/cotizaciones.module";
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AuthModule } from "../auth/auth.module";
       Campania,
     ]),
     AuthModule,
+    CotizacionesModule,
   ],
   controllers: [ReportesController],
   providers: [ReportesService],

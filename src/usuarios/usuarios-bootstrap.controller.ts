@@ -1,6 +1,7 @@
-import { Controller, Post, Request, UseGuards } from "@nestjs/common";
+import { Controller, Post, Request, Body, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { UsuariosService } from "./usuarios.service";
+import { BootstrapUsuarioDto } from "./dto/bootstrap-usuario.dto";
 import { FirebaseBootstrapGuard } from "../auth/guards/firebase-bootstrap.guard";
 
 /**
@@ -18,8 +19,11 @@ export class UsuariosBootstrapController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Crea el documento del usuario en Firestore si no existe (signup)",
+    description:
+      "Acepta opcionalmente el celular (WhatsApp) cargado en el formulario " +
+      "de registro y lo guarda en el documento del usuario.",
   })
-  bootstrap(@Request() req) {
-    return this.usuariosService.bootstrapUsuario(req.user);
+  bootstrap(@Request() req, @Body() dto: BootstrapUsuarioDto) {
+    return this.usuariosService.bootstrapUsuario(req.user, dto?.celular);
   }
 }

@@ -70,7 +70,10 @@ const num = (v: number | string | null | undefined): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
+export function calcularResultados(
+  c: CampaniaParaCalculo,
+  dolarInsumo = 1,
+): ResultadosCampania {
   const supSembrada = num(c.supSembrada);
   const supCosechada = num(c.supCosechada);
   const prodNeta = num(c.prodNetaTotalQq);
@@ -78,6 +81,7 @@ export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
   const comercPct = num(c.comercializacionPct);
   const cosechaHa = num(c.cosechaXHa);
   const alquilerQqHa = num(c.alquilerQqHa);
+  const dInsumo = num(dolarInsumo) || 1;
 
   const rendimientoQqHa = supCosechada > 0 ? prodNeta / supCosechada : 0;
   const ingresoNetoHa = rendimientoQqHa * precio * (1 - comercPct / 100);
@@ -89,14 +93,17 @@ export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
     );
   }, 0);
 
-  const costoTotalInsumosHa = (c.insumos || []).reduce((acc, i) => {
-    if (supSembrada <= 0) return acc;
-    return (
-      acc +
-      (num(i.unidadesHa) * num(i.costoUnidad) * num(i.superficieAplicada)) /
-        supSembrada
-    );
-  }, 0);
+  // El costo/unidad de insumos se guarda en USD: se convierte a pesos con el
+  // dólar venta (dolarInsumo) para que todos los indicadores queden en pesos.
+  const costoTotalInsumosHa =
+    (c.insumos || []).reduce((acc, i) => {
+      if (supSembrada <= 0) return acc;
+      return (
+        acc +
+        (num(i.unidadesHa) * num(i.costoUnidad) * num(i.superficieAplicada)) /
+          supSembrada
+      );
+    }, 0) * dInsumo;
   const costoTotalCostosHa = (c.costos || []).reduce(
     (acc, k) => acc + num(k.unidadesHa) * num(k.costoUnidad),
     0,
@@ -111,10 +118,10 @@ export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
   return {
     rendimientoQqHa,
     ingresoNetoHa,
-    ingresoNetoLote: ingresoNetoHa * supCosechada,
+    ingresoNetoLote: ingresoNetoHa * supSembrada,
 
     costoCosechaHa: cosechaHa,
-    costoCosechaLote: cosechaHa * supCosechada,
+    costoCosechaLote: cosechaHa * supSembrada,
 
     costoTotalLaboresHa,
     costoTotalLaboresLote: costoTotalLaboresHa * supSembrada,
@@ -126,19 +133,15 @@ export function calcularResultados(c: CampaniaParaCalculo): ResultadosCampania {
     costoTotalCostosLote: costoTotalCostosHa * supSembrada,
 
     totalCostosDirectosHa,
-    totalCostosDirectosLote:
-      cosechaHa * supCosechada +
-      costoTotalLaboresHa * supSembrada +
-      costoTotalInsumosHa * supSembrada +
-      costoTotalCostosHa * supSembrada,
+    totalCostosDirectosLote: totalCostosDirectosHa * supSembrada,
 
     costoAlquilerHa,
-    costoAlquilerLote: costoAlquilerHa * supCosechada,
+    costoAlquilerLote: costoAlquilerHa * supSembrada,
 
     margenBrutoSAlquilerHa,
-    margenBrutoSAlquilerLote: margenBrutoSAlquilerHa * supCosechada,
+    margenBrutoSAlquilerLote: margenBrutoSAlquilerHa * supSembrada,
 
     margenBrutoCAlquilerHa,
-    margenBrutoCAlquilerLote: margenBrutoCAlquilerHa * supCosechada,
+    margenBrutoCAlquilerLote: margenBrutoCAlquilerHa * supSembrada,
   };
 }

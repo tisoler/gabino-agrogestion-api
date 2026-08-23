@@ -209,6 +209,10 @@ export class FirestoreCacheService {
           auth?.email ??
           docId,
         photoURL: data?.picture ?? data?.photoURL ?? auth?.photoURL ?? null,
+        celular:
+          typeof data?.celular === "string" && data.celular.trim() !== ""
+            ? data.celular.trim()
+            : null,
         roles,
         idEmpresas,
       };

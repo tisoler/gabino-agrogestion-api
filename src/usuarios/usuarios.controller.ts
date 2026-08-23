@@ -15,6 +15,7 @@ import {
 } from "@nestjs/swagger";
 import { UsuariosService } from "./usuarios.service";
 import { UpdateUserEmpresasDto } from "./dto/update-user-empresas.dto";
+import { UpdateUserCelularDto } from "./dto/update-user-celular.dto";
 import type { UsuarioBasico } from "../empresas/empresas.service";
 import { FirebaseGuard } from "../auth/guards/firebase.guard";
 import { PermissionsGuard } from "../auth/guards/permissions.guard";
@@ -67,5 +68,26 @@ export class UsuariosController {
       dto.remove ?? [],
       req.user,
     );
+  }
+
+  @Patch(":uid/celular")
+  @Permissions("escritura:empresa")
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @ApiOperation({
+    summary: "Agregar / editar el celular (WhatsApp) de un usuario",
+    description:
+      "Actualiza el campo `celular` del documento del usuario en Firestore " +
+      "(formato internacional, ej: +5491122334455; string vacío lo borra). " +
+      "El destinatario no puede ser sys-admin. Admin toca a cualquiera; " +
+      "el asesor sólo su propio celular o el de usuarios de sus empresas. " +
+      "Invalida el cache de usuarios.",
+  })
+  @ApiParam({ name: "uid", description: "UID de Firebase del usuario" })
+  async updateCelular(
+    @Param("uid") uid: string,
+    @Body() dto: UpdateUserCelularDto,
+    @Request() req,
+  ): Promise<UsuarioBasico> {
+    return this.usuariosService.updateCelular(uid, dto.celular, req.user);
   }
 }
