@@ -36,6 +36,9 @@ export class CampaniaCosto {
   @Column({ name: "costo_unidad", ...decimalColumn() })
   costoUnidad: number;
 
+  @Column({ type: "text", nullable: true })
+  observaciones: string | null;
+
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 

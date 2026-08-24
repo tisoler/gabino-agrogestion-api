@@ -67,4 +67,11 @@ export class CreateCampaniaDetalleCostoDto {
   @Type(() => Number)
   @IsNumber()
   costoUnidad: number;
+
+  @ApiPropertyOptional({
+    description: "Observaciones opcionales del costo",
+  })
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
 }

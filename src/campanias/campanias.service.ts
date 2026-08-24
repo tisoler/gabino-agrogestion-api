@@ -464,6 +464,7 @@ export class CampaniasService {
       idCosto: dto.idCosto,
       unidadesHa: dto.unidadesHa,
       costoUnidad: dto.costoUnidad,
+      observaciones: dto.observaciones ?? null,
     });
     return this.campaniaCostoRepo.save(costo);
   }
