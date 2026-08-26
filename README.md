@@ -17,6 +17,10 @@ pnpm test             # jest
 - `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` — conexión PostgreSQL.
 - `PORT` — puerto (default `3063`).
 - `CACHE_AUTH_TTL`, `CACHE_USUARIOS_TTL` — TTL del cache de Firestore en milisegundos (default 4h).
+- `DO_SPACES_ENDPOINT`, `DO_SPACES_REGION`, `DO_SPACES_KEY`, `DO_SPACES_SECRET`,
+  `DO_SPACES_BUCKET`, `DO_SPACES_PUBLIC_URL` — DigitalOcean Spaces para guardar los PDFs
+  de prescripciones que se comparten por WhatsApp (endpoint, región, credenciales, bucket y
+  URL pública base; `DO_SPACES_REGION` y `DO_SPACES_PUBLIC_URL` son opcionales).
 - `firebase-service-account.json` — credenciales del service account en la raíz del proyecto.
 
 ## Base de datos y migraciones

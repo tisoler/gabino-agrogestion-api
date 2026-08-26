@@ -41,6 +41,15 @@ export class Prescripcion {
   @Column({ name: "anulada", default: false })
   anulada: boolean;
 
+  /**
+   * URL pública (DO Spaces) del PDF generado para compartir por WhatsApp.
+   * Opcional: se crea al compartir por primera vez y se reutiliza en
+   * sucesivos compartidos. La limpieza de PDFs viejos puede volver a
+   * setearlo en NULL para forzar la regeneración.
+   */
+  @Column({ name: "pdf_url", type: "varchar", length: 1000, nullable: true })
+  pdfUrl: string | null;
+
   @OneToMany(() => PrescripcionInsumo, (pi) => pi.prescripcion, {
     cascade: true,
   })

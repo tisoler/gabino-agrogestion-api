@@ -8,8 +8,10 @@ import {
   Post,
   Query,
   Request,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import { Response } from "express";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -19,9 +21,13 @@ import {
 import { PrescripcionesService } from "./prescripciones.service";
 import { CreatePrescripcionDto } from "./dto/create-prescripcion.dto";
 import { UpdateAnuladaDto } from "./dto/update-anulada.dto";
+import { LimpiarPdfsDto } from "./dto/limpiar-pdfs.dto";
 import { FirebaseGuard } from "../auth/guards/firebase.guard";
 import { PermissionsGuard } from "../auth/guards/permissions.guard";
 import { Permissions } from "../auth/decorators/permissions.decorator";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { Roles as RolesConst } from "../constantes";
 
 @ApiTags("prescripciones")
 @Controller("prescripciones")
@@ -119,6 +125,47 @@ export class PrescripcionesController {
   @ApiOperation({ summary: "Obtener una prescripción con sus insumos" })
   findOne(@Param("id", ParseIntPipe) id: number, @Request() req) {
     return this.service.findOne(id, req.user);
+  }
+
+  @Get(":id/pdf")
+  @Permissions("lectura:prescripcion")
+  @ApiOperation({ summary: "Descargar la prescripción en PDF" })
+  async pdf(
+    @Param("id", ParseIntPipe) id: number,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.service.generarPdf(id, req.user);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="prescripcion-${id}.pdf"`,
+    );
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  }
+
+  @Post(":id/compartir")
+  @Permissions("lectura:prescripcion")
+  @ApiOperation({
+    summary:
+      "Genera (o reutiliza) el PDF y devuelve la URL pública para compartir por WhatsApp",
+  })
+  compartir(@Param("id", ParseIntPipe) id: number, @Request() req) {
+    return this.service.compartir(id, req.user);
+  }
+
+  @Post("limpiar-pdfs")
+  @UseGuards(RolesGuard)
+  @Roles(RolesConst.SYS_ADMIN)
+  @ApiOperation({
+    summary:
+      "Elimina los PDFs de prescripciones más antiguos que la cantidad de meses indicada",
+  })
+  limpiarPdfs(@Body() dto: LimpiarPdfsDto) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - dto.meses);
+    return this.service.limpiarPdfsAntiguos(cutoff);
   }
 
   @Patch(":id/anulada")

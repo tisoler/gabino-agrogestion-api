@@ -17,6 +17,8 @@ import { CampaniaLabor } from "../entities/campania-labor.entity";
 import { CampaniaInsumo } from "../entities/campania-insumo.entity";
 import { Lote } from "../entities/lote.entity";
 import { CreatePrescripcionDto } from "./dto/create-prescripcion.dto";
+import { PrescripcionesPdfService } from "./prescripciones-pdf.service";
+import { SpacesService } from "../spaces/spaces.service";
 
 export interface FindPrescripcionesFilters {
   empresaId?: number;
@@ -58,6 +60,8 @@ export class PrescripcionesService {
     private campaniaInsumoRepo: Repository<CampaniaInsumo>,
     private dataSource: DataSource,
     private notificaciones: NotificacionesService,
+    private pdfService: PrescripcionesPdfService,
+    private spaces: SpacesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -237,7 +241,11 @@ export class PrescripcionesService {
     const prescripcion = await this.prescripcionRepo.findOne({
       where: { id },
       relations: {
-        campania: { lote: { campo: true }, cultivo: true, variedad: true },
+        campania: {
+          lote: { campo: true, empresa: true },
+          cultivo: true,
+          variedad: true,
+        },
         labor: true,
         insumos: { insumo: true },
       },
@@ -251,6 +259,60 @@ export class PrescripcionesService {
       "ver esta prescripción",
     );
     return prescripcion;
+  }
+
+  // ---------------------------------------------------------------------------
+  // PDF para descarga / compartir
+  // ---------------------------------------------------------------------------
+  /**
+   * Genera el PDF de la prescripción (media hoja A4, membrete/pie) y devuelve
+   * el buffer. No persiste nada.
+   */
+  async generarPdf(id: number, user: any): Promise<Buffer> {
+    const prescripcion = await this.findOne(id, user);
+    return this.pdfService.buildPdf(prescripcion);
+  }
+
+  /**
+   * Devuelve la URL pública del PDF para compartir por WhatsApp. Si la
+   * prescripción ya tiene un PDF generado, reutiliza su URL; si no, lo genera,
+   * lo sube al Space y guarda la URL en `pdf_url` para no regenerarlo.
+   */
+  async compartir(id: number, user: any): Promise<{ url: string }> {
+    const prescripcion = await this.findOne(id, user);
+    if (prescripcion.pdfUrl) {
+      return { url: prescripcion.pdfUrl };
+    }
+
+    const key = this.spaces.generarKeyPdf();
+    const buffer = await this.pdfService.buildPdf(prescripcion);
+    const url = await this.spaces.subirPdf(key, buffer);
+    await this.prescripcionRepo.update(id, { pdfUrl: url });
+    return { url };
+  }
+
+  /**
+   * Elimina los PDFs de prescripciones cuya fecha de generación (LastModified
+   * en el Space) es anterior o igual a `cutoff`, y limpia la URL guardada en
+   * `pdf_url` para que la próxima vez que se comparta se regeneren.
+   */
+  async limpiarPdfsAntiguos(cutoff: Date): Promise<{ eliminados: number }> {
+    const objetos = await this.spaces.listarPdfsAntiguos(cutoff);
+    if (objetos.length === 0) {
+      return { eliminados: 0 };
+    }
+
+    const urls = objetos.map((o) => o.url);
+    await this.spaces.eliminarPdfs(objetos.map((o) => o.key));
+
+    await this.prescripcionRepo
+      .createQueryBuilder()
+      .update()
+      .set({ pdfUrl: null })
+      .where("pdf_url IN (:...urls)", { urls })
+      .execute();
+
+    return { eliminados: urls.length };
   }
 
   // ---------------------------------------------------------------------------

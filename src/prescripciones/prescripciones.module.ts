@@ -10,6 +10,8 @@ import { CampaniaLabor } from "../entities/campania-labor.entity";
 import { CampaniaInsumo } from "../entities/campania-insumo.entity";
 import { PrescripcionesController } from "./prescripciones.controller";
 import { PrescripcionesService } from "./prescripciones.service";
+import { PrescripcionesPdfService } from "./prescripciones-pdf.service";
+import { SpacesService } from "../spaces/spaces.service";
 import { AuthModule } from "../auth/auth.module";
 import { NotificacionesModule } from "../notificaciones/notificaciones.module";
 
@@ -29,7 +31,7 @@ import { NotificacionesModule } from "../notificaciones/notificaciones.module";
     NotificacionesModule,
   ],
   controllers: [PrescripcionesController],
-  providers: [PrescripcionesService],
+  providers: [PrescripcionesService, PrescripcionesPdfService, SpacesService],
   exports: [PrescripcionesService],
 })
 export class PrescripcionesModule {}
