@@ -1,4 +1,0 @@
-ignoredBuiltDependencies:
-  - '@firebase/util'
-  - '@nestjs/core'
-  - protobufjs
