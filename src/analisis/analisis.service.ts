@@ -189,8 +189,7 @@ export class AnalisisService {
         hrMedia: round1(agregados.hrMedia ?? NaN) as number | null,
         lluviaTotal: round2(agregados.lluviaTotal ?? NaN) as number | null,
         lluviaDiariaMedia: round2(agregados.lluviaDiariaMedia ?? NaN) as
-          | number
-          | null,
+          number | null,
         gddPeriodo: round1(agregados.gddPeriodo ?? NaN) as number | null,
         diasConDatos: agregados.diasConDatos,
       },

@@ -198,8 +198,19 @@ export class UsuariosService {
         idRol: ID_ROL_PREDETERMINADO,
         nombre,
       };
-      const celular = this.normalizarCelular(celularRaw);
-      if (celular) doc.celular = celular;
+      // El celular es opcional y NO debe impedir la creación del documento:
+      // si el formato no es válido se ignora con un warning en vez de
+      // fallar todo el bootstrap (antes un celular sin "+" hacía que el
+      // signup no generara el doc de Firestore ni invalidara la cache).
+      try {
+        const celular = this.normalizarCelular(celularRaw);
+        if (celular) doc.celular = celular;
+      } catch {
+        console.warn(
+          "[usuarios] Celular inválido en bootstrap, se ignora:",
+          celularRaw,
+        );
+      }
       await ref.set(doc);
     }
 
