@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   UseGuards,
   Request,
@@ -19,7 +20,9 @@ import {
   EmpresaConUsuarios,
   UsuarioBasico,
 } from "./empresas.service";
+import { Empresa } from "../entities/empresa.entity";
 import { CreateEmpresaDto } from "./dto/create-empresa.dto";
+import { UpdateEmpresaDto } from "./dto/update-empresa.dto";
 import { FirebaseGuard } from "../auth/guards/firebase.guard";
 import { PermissionsGuard } from "../auth/guards/permissions.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -74,5 +77,23 @@ export class EmpresasController {
   @ApiOperation({ summary: "Crear una nueva empresa" })
   create(@Body() createEmpresaDto: CreateEmpresaDto, @Request() req) {
     return this.empresasService.create(createEmpresaDto, req.user);
+  }
+
+  @Patch(":id")
+  @Permissions("escritura:empresa")
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @ApiOperation({
+    summary: "Actualizar el nombre de una empresa",
+    description:
+      "El nombre se normaliza a mayúscula inicial por palabra (excepto la palabra 'y'). " +
+      "sys-admin / asesor-admin pueden editar cualquier empresa; el asesor sólo sus idEmpresas.",
+  })
+  @ApiParam({ name: "id", type: Number, description: "ID de la empresa" })
+  update(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() updateEmpresaDto: UpdateEmpresaDto,
+    @Request() req,
+  ): Promise<Empresa> {
+    return this.empresasService.update(id, updateEmpresaDto, req.user);
   }
 }

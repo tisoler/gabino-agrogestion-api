@@ -18,6 +18,7 @@ import { NotificacionesModule } from "./notificaciones/notificaciones.module";
 import { ReportesModule } from "./reportes/reportes.module";
 import { MensajesMasivosModule } from "./mensajes-masivos/mensajes-masivos.module";
 import { CacheModule } from "./cache/cache.module";
+import { AnalisisModule } from "./analisis/analisis.module";
 
 import { Empresa } from "./entities/empresa.entity";
 import { Labor } from "./entities/labor.entity";
@@ -96,6 +97,7 @@ import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
     ReportesModule,
     MensajesMasivosModule,
     CacheModule,
+    AnalisisModule,
   ],
 })
 export class AppModule {}

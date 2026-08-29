@@ -10,6 +10,7 @@ import * as admin from "firebase-admin";
 import { Empresa } from "../entities/empresa.entity";
 import { Roles } from "src/constantes";
 import { CreateEmpresaDto } from "./dto/create-empresa.dto";
+import { UpdateEmpresaDto } from "./dto/update-empresa.dto";
 import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 export interface UsuarioBasico {
@@ -75,7 +76,10 @@ export class EmpresasService {
     if (!isAdmin && !isAsesor) {
       throw new BadRequestException("No tiene permisos para crear empresas");
     }
-    const empresa = this.empresaRepository.create(createEmpresaDto);
+    const empresa = this.empresaRepository.create({
+      ...createEmpresaDto,
+      nombre: this.capitalizarNombreEmpresa(createEmpresaDto.nombre),
+    });
     const saved = await this.empresaRepository.save(empresa);
 
     // Al crear una empresa, el asesor queda asociado automáticamente a ella:
@@ -105,6 +109,61 @@ export class EmpresasService {
     }
 
     return saved;
+  }
+
+  /**
+   * Actualiza el nombre de una empresa en la BD. El nombre se normaliza a
+   * mayúscula inicial por palabra (salvo la palabra "y").
+   *
+   * Reglas:
+   *  - sys-admin / asesor-admin: pueden editar cualquier empresa.
+   *  - asesor: sólo empresas de su propio `idEmpresas`.
+   *  - productor: no autorizado (lo bloquea el controller con @Roles).
+   */
+  async update(
+    id: number,
+    updateEmpresaDto: UpdateEmpresaDto,
+    user: any,
+  ): Promise<Empresa> {
+    const empresa = await this.findOne(id);
+    if (!empresa) {
+      throw new NotFoundException("Empresa no encontrada");
+    }
+
+    const isAdmin =
+      user.roles?.includes(Roles.SYS_ADMIN) ||
+      user.roles?.includes(Roles.ASESOR_ADMIN);
+    if (!isAdmin) {
+      const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+        Number(e),
+      );
+      if (!userEmpresas.includes(id)) {
+        throw new ForbiddenException(
+          "No tiene permisos para modificar esta empresa",
+        );
+      }
+    }
+
+    empresa.nombre = this.capitalizarNombreEmpresa(updateEmpresaDto.nombre);
+    return this.empresaRepository.save(empresa);
+  }
+
+  /**
+   * Normaliza el nombre de una empresa: primera letra de cada palabra en
+   * mayúscula y el resto en minúscula, salvo la palabra "y" que se conserva
+   * en minúscula. Ej: "establecimiento LA PRAdera y campos" →
+   * "Establecimiento La Pradera y Campos".
+   */
+  private capitalizarNombreEmpresa(nombre: string): string {
+    return nombre
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((palabra) => {
+        const lower = palabra.toLowerCase();
+        if (lower === "y") return lower;
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(" ");
   }
 
   async findAllWithUsers(user: any): Promise<EmpresaConUsuarios[]> {

@@ -16,6 +16,7 @@ import {
 import { UsuariosService } from "./usuarios.service";
 import { UpdateUserEmpresasDto } from "./dto/update-user-empresas.dto";
 import { UpdateUserCelularDto } from "./dto/update-user-celular.dto";
+import { UpdateUserNombreDto } from "./dto/update-user-nombre.dto";
 import type { UsuarioBasico } from "../empresas/empresas.service";
 import { FirebaseGuard } from "../auth/guards/firebase.guard";
 import { PermissionsGuard } from "../auth/guards/permissions.guard";
@@ -89,5 +90,25 @@ export class UsuariosController {
     @Request() req,
   ): Promise<UsuarioBasico> {
     return this.usuariosService.updateCelular(uid, dto.celular, req.user);
+  }
+
+  @Patch(":uid/nombre")
+  @Permissions("escritura:empresa")
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @ApiOperation({
+    summary: "Agregar / editar el nombre de un usuario",
+    description:
+      "Actualiza el campo `nombre` del documento del usuario en Firestore. " +
+      "El destinatario no puede ser sys-admin. Admin toca a cualquiera; " +
+      "el asesor sólo su propio nombre o el de usuarios de sus empresas. " +
+      "Invalida el cache de usuarios.",
+  })
+  @ApiParam({ name: "uid", description: "UID de Firebase del usuario" })
+  async updateNombre(
+    @Param("uid") uid: string,
+    @Body() dto: UpdateUserNombreDto,
+    @Request() req,
+  ): Promise<UsuarioBasico> {
+    return this.usuariosService.updateNombre(uid, dto.nombre, req.user);
   }
 }

@@ -314,37 +314,37 @@ export class PrescripcionesPdfService {
     const rows: TableCell[][] =
       p.insumos?.length === 0
         ? [
-          [
-            {
-              text: "Esta prescripción no tiene insumos.",
-              fontSize: 10.5,
-              colSpan: 3,
-            },
-            {},
-            {},
-          ],
-        ]
+            [
+              {
+                text: "Esta prescripción no tiene insumos.",
+                fontSize: 10.5,
+                colSpan: 3,
+              },
+              {},
+              {},
+            ],
+          ]
         : (p.insumos ?? []).map((i) => [
-          {
-            text: i.insumo?.nombre || `Insumo #${i.idInsumo}`,
-            fontSize: 10.5,
-          },
-          {
-            text: fmtDosisCantidad(
-              i.cantidadPorHa,
-              i.insumo?.unidad,
-              2,
-              true,
-            ),
-            fontSize: 10.5,
-            alignment: "right",
-          },
-          {
-            text: fmtDosisCantidad(i.cantidadTotal, i.insumo?.unidad, 2),
-            fontSize: 10.5,
-            alignment: "right",
-          },
-        ]);
+            {
+              text: i.insumo?.nombre || `Insumo #${i.idInsumo}`,
+              fontSize: 10.5,
+            },
+            {
+              text: fmtDosisCantidad(
+                i.cantidadPorHa,
+                i.insumo?.unidad,
+                2,
+                true,
+              ),
+              fontSize: 10.5,
+              alignment: "right",
+            },
+            {
+              text: fmtDosisCantidad(i.cantidadTotal, i.insumo?.unidad, 2),
+              fontSize: 10.5,
+              alignment: "right",
+            },
+          ]);
 
     return {
       table: {

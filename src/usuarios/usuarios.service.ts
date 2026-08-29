@@ -209,6 +209,86 @@ export class UsuariosService {
   }
 
   /**
+   * Agrega/edita el nombre de un usuario, guardándolo en su documento
+   * `usuarios/{uid}` de Firestore (campo `nombre`).
+   *
+   * Reglas:
+   *  - El destinatario no puede ser sys-admin.
+   *  - sys-admin / asesor-admin: pueden tocar cualquier usuario.
+   *  - asesor: puede tocar su propio nombre o el de usuarios que compartan
+   *    alguna de sus idEmpresas.
+   *
+   * Invalida los caches tras guardar para que el cambio se vea de inmediato.
+   */
+  async updateNombre(
+    uid: string,
+    nombreRaw: string,
+    user: any,
+  ): Promise<UsuarioBasico> {
+    if (!uid || typeof uid !== "string") {
+      throw new BadRequestException("uid es requerido");
+    }
+    const nombre = nombreRaw?.trim();
+    if (!nombre) {
+      throw new BadRequestException("El nombre no puede estar vacío");
+    }
+
+    const db = admin.firestore();
+    const userRef = db.collection("usuarios").doc(uid);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      throw new NotFoundException(`Usuario ${uid} no encontrado en Firestore`);
+    }
+    const currentData = userDoc.data() || {};
+
+    // El destinatario no puede ser sys-admin.
+    const targetRoles = await this.resolveTargetRoles(currentData);
+    if (targetRoles.includes(Roles.SYS_ADMIN)) {
+      throw new ForbiddenException(
+        "No se puede editar el nombre de un sys-admin",
+      );
+    }
+
+    // Autorización: admin puede tocar a cualquiera; el resto sólo a sí mismo
+    // o a usuarios de sus propias empresas.
+    const isAdmin =
+      user.roles?.includes(Roles.SYS_ADMIN) ||
+      user.roles?.includes(Roles.ASESOR_ADMIN);
+    if (!isAdmin && uid !== user.id) {
+      const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+        Number(e),
+      );
+      const targetEmpresas = this.resolveCurrentIdEmpresas(currentData);
+      const comparte = targetEmpresas.some((e) => userEmpresas.includes(e));
+      if (!comparte) {
+        throw new ForbiddenException(
+          "No tiene permisos para editar el nombre de este usuario",
+        );
+      }
+    }
+
+    await userRef.update({ nombre });
+
+    // El listado cacheado incluye el nombre: invalidar para verlo de inmediato.
+    this.cache.invalidateUser(uid);
+    this.cache.invalidateAll();
+
+    const authMap = await this.fetchAuthRecords([uid]);
+    const auth = authMap.get(uid);
+
+    return {
+      uid,
+      email: auth?.email ?? currentData?.email ?? null,
+      nombreUsuario: nombre,
+      photoURL:
+        currentData?.picture ?? currentData?.photoURL ?? auth?.photoURL ?? null,
+      celular: this.leerCelular(currentData),
+      roles: targetRoles,
+      idEmpresas: this.resolveCurrentIdEmpresas(currentData),
+    };
+  }
+
+  /**
    * Agrega/edita el celular (WhatsApp) de un usuario, guardándolo en su
    * documento `usuarios/{uid}` de Firestore. Enviar string vacío para borrarlo.
    *
@@ -343,6 +423,23 @@ export class UsuariosService {
     return typeof data?.celular === "string" && data.celular.trim() !== ""
       ? data.celular.trim()
       : null;
+  }
+
+  /**
+   * Resuelve los roles de un usuario de Firestore cargando la colección
+   * "roles" (FK idRol → roles.nombre). Tolerante a schemas variados.
+   */
+  private async resolveTargetRoles(data: any): Promise<string[]> {
+    const db = admin.firestore();
+    const rolesSnap = await db.collection("roles").get();
+    const roleById = new Map<string, string>();
+    for (const doc of rolesSnap.docs) {
+      const nombre = doc.data()?.nombre;
+      if (typeof nombre === "string" && nombre) {
+        roleById.set(doc.id, nombre);
+      }
+    }
+    return this.resolveRoles(data, roleById);
   }
 
   private resolveRoles(data: any, roleById: Map<string, string>): string[] {
