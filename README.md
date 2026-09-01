@@ -5,7 +5,7 @@ Backend **NestJS + TypeORM + PostgreSQL**, autenticación con **Firebase Auth**.
 ## Comandos
 
 ```bash
-pnpm install          # instalar dependencias
+pnpm install          # instalar dependencias 
 pnpm run start:dev    # desarrollo (watch) → http://localhost:3063/api
 pnpm build            # nest build (tsc)
 pnpm run lint         # eslint + prettier (--fix)
