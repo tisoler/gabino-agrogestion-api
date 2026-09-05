@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Prescripcion } from "../entities/prescripcion.entity";
 import { PrescripcionInsumo } from "../entities/prescripcion-insumo.entity";
+import { PrescripcionCampania } from "../entities/prescripcion-campania.entity";
 import { Campania } from "../entities/campania.entity";
 import { Lote } from "../entities/lote.entity";
 import { Labor } from "../entities/labor.entity";
@@ -20,6 +21,7 @@ import { NotificacionesModule } from "../notificaciones/notificaciones.module";
     TypeOrmModule.forFeature([
       Prescripcion,
       PrescripcionInsumo,
+      PrescripcionCampania,
       Campania,
       Lote,
       Labor,

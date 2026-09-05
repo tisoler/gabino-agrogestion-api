@@ -35,6 +35,7 @@ import { CategoriaInsumo } from "./entities/categoria-insumo.entity";
 import { Campo } from "./entities/campo.entity";
 import { Prescripcion } from "./entities/prescripcion.entity";
 import { PrescripcionInsumo } from "./entities/prescripcion-insumo.entity";
+import { PrescripcionCampania } from "./entities/prescripcion-campania.entity";
 import { Notificacion } from "./entities/notificacion.entity";
 import { Reporte } from "./entities/reporte.entity";
 import { ReporteFila } from "./entities/reporte-fila.entity";
@@ -70,6 +71,7 @@ import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
           Campo,
           Prescripcion,
           PrescripcionInsumo,
+          PrescripcionCampania,
           Notificacion,
           Reporte,
           ReporteFila,

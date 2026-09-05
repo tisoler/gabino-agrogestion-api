@@ -10,6 +10,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, In, Repository } from "typeorm";
 import { Prescripcion } from "../entities/prescripcion.entity";
 import { PrescripcionInsumo } from "../entities/prescripcion-insumo.entity";
+import { PrescripcionCampania } from "../entities/prescripcion-campania.entity";
 import { Campania } from "../entities/campania.entity";
 import { Labor } from "../entities/labor.entity";
 import { Insumo } from "../entities/insumo.entity";
@@ -34,13 +35,14 @@ export interface FindPrescripcionesFilters {
 export interface PrescripcionListItem {
   id: number;
   fecha: string;
-  idCampania: number;
+  idCampania: number | null;
   idLabor: number;
   totalHaAplicacion: number;
   anulada: boolean;
   campania: Campania | null;
   labor: Labor | null;
   insumoCount: number;
+  lotesCount: number;
 }
 
 @Injectable()
@@ -50,6 +52,8 @@ export class PrescripcionesService {
     private prescripcionRepo: Repository<Prescripcion>,
     @InjectRepository(PrescripcionInsumo)
     private prescripcionInsumoRepo: Repository<PrescripcionInsumo>,
+    @InjectRepository(PrescripcionCampania)
+    private prescripcionCampaniaRepo: Repository<PrescripcionCampania>,
     @InjectRepository(Campania) private campaniaRepo: Repository<Campania>,
     @InjectRepository(Lote) private loteRepo: Repository<Lote>,
     @InjectRepository(Labor) private laborRepo: Repository<Labor>,
@@ -101,9 +105,14 @@ export class PrescripcionesService {
       qb.andWhere("lote.id_empresa IN (:...ids)", { ids: userEmpresas });
     }
     if (filters.idCampania) {
-      qb.andWhere("p.id_campania = :idCampania", {
-        idCampania: filters.idCampania,
-      });
+      // Vale tanto si es la producción principal como si es uno de los lotes.
+      qb.andWhere(
+        `(p.id_campania = :idCampania OR EXISTS (
+           SELECT 1 FROM prescripcion_campania pc
+           WHERE pc.id_prescripcion = p.id AND pc.id_campania = :idCampania
+         ))`,
+        { idCampania: filters.idCampania },
+      );
     }
     if (filters.campanias && filters.campanias.length > 0) {
       qb.andWhere("campania.campania IN (:...campanias)", {
@@ -144,17 +153,30 @@ export class PrescripcionesService {
     if (prescripciones.length === 0) return [];
 
     const ids = prescripciones.map((p) => p.id);
-    const insumos = await this.prescripcionInsumoRepo
-      .createQueryBuilder("pi")
-      .select("pi.id_prescripcion", "id_prescripcion")
-      .addSelect("COUNT(*)", "cnt")
-      .where("pi.id_prescripcion IN (:...ids)", { ids })
-      .groupBy("pi.id_prescripcion")
-      .getRawMany<{ id_prescripcion: number; cnt: string }>();
+    const [insumos, loteRows] = await Promise.all([
+      this.prescripcionInsumoRepo
+        .createQueryBuilder("pi")
+        .select("pi.id_prescripcion", "id_prescripcion")
+        .addSelect("COUNT(*)", "cnt")
+        .where("pi.id_prescripcion IN (:...ids)", { ids })
+        .groupBy("pi.id_prescripcion")
+        .getRawMany<{ id_prescripcion: number; cnt: string }>(),
+      this.prescripcionCampaniaRepo
+        .createQueryBuilder("pc")
+        .select("pc.id_prescripcion", "id_prescripcion")
+        .addSelect("COUNT(*)", "cnt")
+        .where("pc.id_prescripcion IN (:...ids)", { ids })
+        .groupBy("pc.id_prescripcion")
+        .getRawMany<{ id_prescripcion: number; cnt: string }>(),
+    ]);
 
     const countByPrescripcion = new Map<number, number>();
     for (const row of insumos) {
       countByPrescripcion.set(Number(row.id_prescripcion), Number(row.cnt));
+    }
+    const lotesByPrescripcion = new Map<number, number>();
+    for (const row of loteRows) {
+      lotesByPrescripcion.set(Number(row.id_prescripcion), Number(row.cnt));
     }
 
     return prescripciones.map<PrescripcionListItem>((p) => ({
@@ -167,6 +189,7 @@ export class PrescripcionesService {
       campania: p.campania ?? null,
       labor: p.labor ?? null,
       insumoCount: countByPrescripcion.get(p.id) ?? 0,
+      lotesCount: lotesByPrescripcion.get(p.id) ?? 0,
     }));
   }
 
@@ -180,7 +203,9 @@ export class PrescripcionesService {
         campania: { lote: true },
         labor: true,
         insumos: { insumo: true },
+        lotes: true,
       },
+      order: { lotes: { id: "ASC" } },
     });
     if (!prescripcion)
       throw new NotFoundException("Prescripción no encontrada");
@@ -196,35 +221,48 @@ export class PrescripcionesService {
       const campaniaInsumoRepo = manager.getRepository(CampaniaInsumo);
 
       // Al anular o recuperar se quitan/regeneran la labor y los insumos que
-      // esta prescripción aporta a la producción (campania_labor /
+      // esta prescripción aporta a cada producción (campania_labor /
       // campania_insumo), identificados por idPrescripcion.
       await campaniaLaborRepo.delete({ idPrescripcion: id });
       await campaniaInsumoRepo.delete({ idPrescripcion: id });
 
       if (!anulada) {
-        // Recuperar: reconstruir las filas como al crear la prescripción
-        // (mismos valores que CreatePrescripcionDto propagaba a la campaña).
-        const laborRel = campaniaLaborRepo.create({
-          idCampania: prescripcion.idCampania,
-          idLabor: prescripcion.idLabor,
-          fecha: prescripcion.fecha,
-          superficieLaboreada: prescripcion.totalHaAplicacion,
-          costoLaborHa: prescripcion.labor?.precioUnitario ?? 0,
-          idPrescripcion: prescripcion.id,
-        });
-        await campaniaLaborRepo.save(laborRel);
+        // Recuperar: reconstruir las filas por lote, con la superficie de
+        // cada uno (mismos valores que create() propagaba).
+        const loteRows =
+          prescripcion.lotes?.length > 0
+            ? prescripcion.lotes
+            : prescripcion.idCampania != null
+              ? [
+                  {
+                    idCampania: prescripcion.idCampania,
+                    superficieAplicada: prescripcion.totalHaAplicacion,
+                  },
+                ]
+              : [];
 
-        const totalHa = prescripcion.totalHaAplicacion;
-        for (const i of prescripcion.insumos ?? []) {
-          const rel = campaniaInsumoRepo.create({
-            idCampania: prescripcion.idCampania,
-            idInsumo: i.idInsumo,
-            unidadesHa: i.cantidadPorHa,
-            costoUnidad: i.insumo?.precioUnitario ?? 0,
-            superficieAplicada: totalHa,
+        for (const lote of loteRows) {
+          const laborRel = campaniaLaborRepo.create({
+            idCampania: lote.idCampania,
+            idLabor: prescripcion.idLabor,
+            fecha: prescripcion.fecha,
+            superficieLaboreada: lote.superficieAplicada,
+            costoLaborHa: prescripcion.labor?.precioUnitario ?? 0,
             idPrescripcion: prescripcion.id,
           });
-          await campaniaInsumoRepo.save(rel);
+          await campaniaLaborRepo.save(laborRel);
+
+          for (const i of prescripcion.insumos ?? []) {
+            const rel = campaniaInsumoRepo.create({
+              idCampania: lote.idCampania,
+              idInsumo: i.idInsumo,
+              unidadesHa: i.cantidadPorHa,
+              costoUnidad: i.insumo?.precioUnitario ?? 0,
+              superficieAplicada: lote.superficieAplicada,
+              idPrescripcion: prescripcion.id,
+            });
+            await campaniaInsumoRepo.save(rel);
+          }
         }
       }
 
@@ -248,8 +286,11 @@ export class PrescripcionesService {
         },
         labor: true,
         insumos: { insumo: true },
+        lotes: {
+          campania: { lote: { campo: true }, cultivo: true },
+        },
       },
-      order: { insumos: { id: "ASC" } },
+      order: { insumos: { id: "ASC" }, lotes: { id: "ASC" } },
     });
     if (!prescripcion)
       throw new NotFoundException("Prescripción no encontrada");
@@ -319,16 +360,35 @@ export class PrescripcionesService {
   // Crear
   // ---------------------------------------------------------------------------
   async create(dto: CreatePrescripcionDto, user: any) {
-    const campania = await this.campaniaRepo.findOne({
-      where: { id: dto.idCampania },
+    const loteDtos = dto.lotes ?? [];
+    const campaniaIds = loteDtos.map((l) => l.idCampania);
+    if (new Set(campaniaIds).size !== campaniaIds.length) {
+      throw new BadRequestException("Hay lotes duplicados en la prescripción");
+    }
+
+    const campanias = await this.campaniaRepo.find({
+      where: { id: In(campaniaIds) },
       relations: ["lote"],
     });
-    if (!campania)
-      throw new BadRequestException("La campaña indicada no existe");
-    if (!campania.lote)
-      throw new BadRequestException("La campaña no tiene lote asignado");
+    if (campanias.length !== campaniaIds.length) {
+      throw new BadRequestException(
+        "Una de las producciones indicadas no existe",
+      );
+    }
+    if (campanias.some((c) => !c.lote)) {
+      throw new BadRequestException(
+        "Una de las producciones no tiene lote asignado",
+      );
+    }
+    // Una prescripción abarca lotes de un mismo productor.
+    const empresas = new Set(campanias.map((c) => c.lote!.idEmpresa));
+    if (empresas.size > 1) {
+      throw new BadRequestException(
+        "Todos los lotes deben pertenecer al mismo productor",
+      );
+    }
     this.assertEmpresaAcceso(
-      campania.lote.idEmpresa,
+      campanias[0].lote!.idEmpresa,
       user,
       "crear prescripciones en esta campaña",
     );
@@ -349,65 +409,96 @@ export class PrescripcionesService {
       insumosValidos.push(...found);
     }
 
-    const totalHa = Number(dto.totalHaAplicacion) || 0;
+    const superficieByCampania = new Map<number, number>(
+      loteDtos.map((l) => [l.idCampania, Number(l.superficieAplicada) || 0]),
+    );
+    const totalHa = loteDtos.reduce(
+      (acc, l) => acc + (Number(l.superficieAplicada) || 0),
+      0,
+    );
+    if (totalHa <= 0) {
+      throw new BadRequestException(
+        "La superficie aplicada debe ser mayor a 0",
+      );
+    }
+
+    // Orden estable: la primera producción queda en prescripcion.id_campania
+    // (referencia principal por compatibilidad).
+    const campaniasOrdenadas = [...campanias].sort((a, b) => a.id - b.id);
 
     const result = await this.dataSource.transaction(async (manager) => {
       const prescripcionRepo = manager.getRepository(Prescripcion);
       const insumoRelRepo = manager.getRepository(PrescripcionInsumo);
+      const prescripcionCampaniaRepo =
+        manager.getRepository(PrescripcionCampania);
       const campaniaLaborRepo = manager.getRepository(CampaniaLabor);
       const campaniaInsumoRepo = manager.getRepository(CampaniaInsumo);
 
       const prescripcion = prescripcionRepo.create({
         fecha: dto.fecha,
-        idCampania: dto.idCampania,
+        idCampania: campaniasOrdenadas[0].id,
         idLabor: dto.idLabor,
         totalHaAplicacion: totalHa,
+        observaciones: dto.observaciones?.trim() || null,
       });
       const saved = await prescripcionRepo.save(prescripcion);
+
+      for (const c of campaniasOrdenadas) {
+        const loteRel = prescripcionCampaniaRepo.create({
+          idPrescripcion: saved.id,
+          idCampania: c.id,
+          superficieAplicada: superficieByCampania.get(c.id) ?? 0,
+        });
+        await prescripcionCampaniaRepo.save(loteRel);
+      }
 
       for (const i of insumosDto) {
         const rel = insumoRelRepo.create({
           idPrescripcion: saved.id,
           idInsumo: i.idInsumo,
           cantidadPorHa: Number(i.cantidadPorHa) || 0,
-          cantidadTotal: Number(i.cantidadTotal) || 0,
+          cantidadTotal: (Number(i.cantidadPorHa) || 0) * totalHa,
         });
         await insumoRelRepo.save(rel);
       }
 
-      // Asignar la labor y los insumos a la campaña (valores de referencia),
-      // guardando el id de la prescripción para poder agruparlas visualmente.
-      const laborRel = campaniaLaborRepo.create({
-        idCampania: dto.idCampania,
-        idLabor: dto.idLabor,
-        fecha: dto.fecha,
-        superficieLaboreada: totalHa,
-        costoLaborHa: labor.precioUnitario ?? 0,
-        idPrescripcion: saved.id,
-      });
-      await campaniaLaborRepo.save(laborRel);
-
+      // Asignar la labor y los insumos a cada producción afectada (valores de
+      // referencia con la superficie de su lote), guardando el id de la
+      // prescripción para poder agruparlas visualmente.
       const insumoPorId = new Map<number, Insumo>(
         insumosValidos.map((i) => [i.id, i]),
       );
-      for (const i of insumosDto) {
-        const ins = insumoPorId.get(i.idInsumo);
-        const rel = campaniaInsumoRepo.create({
-          idCampania: dto.idCampania,
-          idInsumo: i.idInsumo,
-          unidadesHa: Number(i.cantidadPorHa) || 0,
-          costoUnidad: ins?.precioUnitario ?? 0,
-          // Al igual que labores, la superficie aplicada es la de la prescripción.
-          superficieAplicada: totalHa,
+      for (const c of campaniasOrdenadas) {
+        const supLote = superficieByCampania.get(c.id) ?? 0;
+
+        const laborRel = campaniaLaborRepo.create({
+          idCampania: c.id,
+          idLabor: dto.idLabor,
+          fecha: dto.fecha,
+          superficieLaboreada: supLote,
+          costoLaborHa: labor.precioUnitario ?? 0,
           idPrescripcion: saved.id,
         });
-        await campaniaInsumoRepo.save(rel);
+        await campaniaLaborRepo.save(laborRel);
+
+        for (const i of insumosDto) {
+          const ins = insumoPorId.get(i.idInsumo);
+          const rel = campaniaInsumoRepo.create({
+            idCampania: c.id,
+            idInsumo: i.idInsumo,
+            unidadesHa: Number(i.cantidadPorHa) || 0,
+            costoUnidad: ins?.precioUnitario ?? 0,
+            superficieAplicada: supLote,
+            idPrescripcion: saved.id,
+          });
+          await campaniaInsumoRepo.save(rel);
+        }
       }
 
       return saved.id;
     });
 
-    await this.notificarNuevaPrescripcion(result, campania, user);
+    await this.notificarNuevaPrescripcion(result, campaniasOrdenadas[0], user);
     return this.findOne(result, user);
   }
 

@@ -232,16 +232,19 @@ export class CampaniasService {
 
     await this.assertCampaniaAcceso(campania, user, "ver");
 
+    // Labores e insumos: primero los originados por una prescripción (id asc)
+    // y al final los que no tienen. En Postgres el ASC ordena NULL last por
+    // defecto, así que idPrescripcion ASC ya cumple ese criterio.
     const [labores, insumos, costos] = await Promise.all([
       this.campaniaLaborRepo.find({
         where: { idCampania: id },
         relations: ["labor"],
-        order: { fecha: "ASC", id: "ASC" },
+        order: { idPrescripcion: "ASC", fecha: "ASC", id: "ASC" },
       }),
       this.campaniaInsumoRepo.find({
         where: { idCampania: id },
         relations: ["insumo"],
-        order: { id: "ASC" },
+        order: { idPrescripcion: "ASC", id: "ASC" },
       }),
       this.campaniaCostoRepo.find({
         where: { idCampania: id },

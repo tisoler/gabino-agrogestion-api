@@ -11,6 +11,7 @@ import {
 import { Campania } from "./campania.entity";
 import { Labor } from "./labor.entity";
 import { PrescripcionInsumo } from "./prescripcion-insumo.entity";
+import { PrescripcionCampania } from "./prescripcion-campania.entity";
 import { decimalColumn } from "../utils/decimal";
 
 @Entity("prescripcion")
@@ -21,8 +22,12 @@ export class Prescripcion {
   @Column({ type: "date" })
   fecha: string;
 
-  @Column({ name: "id_campania" })
-  idCampania: number;
+  /**
+   * Producción principal (primer lote). Se conserva por compatibilidad:
+   * el listado de lotes real vive en `lotes` (prescripcion_campania).
+   */
+  @Column({ name: "id_campania", nullable: true })
+  idCampania: number | null;
 
   @ManyToOne(() => Campania, { eager: false })
   @JoinColumn({ name: "id_campania" })
@@ -37,6 +42,13 @@ export class Prescripcion {
 
   @Column({ name: "total_ha_aplicacion", ...decimalColumn() })
   totalHaAplicacion: number;
+
+  /**
+   * Indicaciones sobre la labor a realizar. Opcional: se muestra en el
+   * detalle y en el PDF (recuadro bajo la lista de insumos).
+   */
+  @Column({ type: "text", nullable: true })
+  observaciones: string | null;
 
   @Column({ name: "anulada", default: false })
   anulada: boolean;
@@ -54,6 +66,10 @@ export class Prescripcion {
     cascade: true,
   })
   insumos: PrescripcionInsumo[];
+
+  /** Lotes (producciones) abarcados por la prescripción, con su superficie. */
+  @OneToMany(() => PrescripcionCampania, (pc) => pc.prescripcion)
+  lotes: PrescripcionCampania[];
 
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;

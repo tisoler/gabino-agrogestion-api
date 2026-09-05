@@ -166,12 +166,25 @@ export class PrescripcionesPdfService {
   private construirDocumento(p: Prescripcion): TDocumentDefinitions {
     const productor = p.campania?.lote?.empresa?.nombre || "—";
     const campo = p.campania?.lote?.campo?.nombre || "—";
-    const lote =
-      p.campania?.lote?.descripcion || `Lote #${p.campania?.lote?.id ?? "—"}`;
     const cultivo = p.campania?.cultivo?.nombre || "—";
     const labor = p.labor?.nombre || `Labor #${p.idLabor}`;
     const superficie = fmtHa(p.totalHaAplicacion);
     const fecha = fmtFecha(p.fecha);
+    const obsBox = this.observacionesBox(p.observaciones);
+
+    // Lotes: con uno solo se muestra como siempre; con varios, cada lote con
+    // su superficie para que la prescripción quede legible en una sola hoja.
+    const loteRows = p.lotes ?? [];
+    const loteText =
+      loteRows.length > 1
+        ? loteRows
+            .map(
+              (l) =>
+                `${l.campania?.lote?.descripcion || `Lote #${l.campania?.lote?.id ?? "?"}`} (${fmtNum(l.superficieAplicada)} ha)`,
+            )
+            .join(" · ")
+        : p.campania?.lote?.descripcion ||
+          `Lote #${p.campania?.lote?.id ?? "—"}`;
 
     return {
       pageSize: { width: mm(PAGE_W), height: mm(PAGE_H) },
@@ -188,8 +201,16 @@ export class PrescripcionesPdfService {
         {
           stack: [
             this.titulo(fecha),
-            this.datosGrid(productor, campo, lote, cultivo, labor, superficie),
+            this.datosGrid(
+              productor,
+              campo,
+              loteText,
+              cultivo,
+              labor,
+              superficie,
+            ),
             this.insumosTable(p),
+            ...(obsBox ? [obsBox] : []),
           ],
           margin: [mm(BODY_SIDE), mm(BODY_TOP), mm(BODY_SIDE), mm(BODY_BOTTOM)],
         },
@@ -361,6 +382,50 @@ export class PrescripcionesPdfService {
         paddingLeft: () => mm(2),
         paddingRight: () => mm(2),
       },
+    };
+  }
+
+  /**
+   * Recuadro de observaciones (indicaciones sobre la labor): va debajo de la
+   * lista de insumos y encima del pie. Devuelve null si no hay texto.
+   */
+  private observacionesBox(
+    observaciones: string | null | undefined,
+  ): Content | null {
+    const texto = observaciones?.trim();
+    if (!texto) return null;
+    return {
+      table: {
+        widths: ["*"],
+        body: [
+          [
+            {
+              stack: [
+                {
+                  text: "OBSERVACIONES",
+                  font: "InterSemibold",
+                  fontSize: 7.5,
+                  characterSpacing: 0.375,
+                },
+                { text: texto, fontSize: 10.5, margin: [0, 3, 0, 0] },
+              ] as Content[],
+            },
+          ],
+        ],
+      },
+      layout: {
+        fillColor: () => "#f4f4f5",
+        hLineWidth: () => BORDER_PT,
+        vLineWidth: () => BORDER_PT,
+        hLineColor: () => "#000000",
+        vLineColor: () => "#000000",
+        paddingTop: () => mm(2.5),
+        paddingBottom: () => mm(2.5),
+        paddingLeft: () => mm(3),
+        paddingRight: () => mm(3),
+      },
+      margin: [0, mm(5), 0, 0],
+      unbreakable: true,
     };
   }
 
