@@ -8,6 +8,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as admin from "firebase-admin";
 import { Empresa } from "../entities/empresa.entity";
+import { capitalizarNombre } from "../utils/nombre";
 import { Roles } from "src/constantes";
 import { CreateEmpresaDto } from "./dto/create-empresa.dto";
 import { UpdateEmpresaDto } from "./dto/update-empresa.dto";
@@ -78,7 +79,7 @@ export class EmpresasService {
     }
     const empresa = this.empresaRepository.create({
       ...createEmpresaDto,
-      nombre: this.capitalizarNombreEmpresa(createEmpresaDto.nombre),
+      nombre: capitalizarNombre(createEmpresaDto.nombre),
     });
     const saved = await this.empresaRepository.save(empresa);
 
@@ -144,26 +145,8 @@ export class EmpresasService {
       }
     }
 
-    empresa.nombre = this.capitalizarNombreEmpresa(updateEmpresaDto.nombre);
+    empresa.nombre = capitalizarNombre(updateEmpresaDto.nombre);
     return this.empresaRepository.save(empresa);
-  }
-
-  /**
-   * Normaliza el nombre de una empresa: primera letra de cada palabra en
-   * mayúscula y el resto en minúscula, salvo la palabra "y" que se conserva
-   * en minúscula. Ej: "establecimiento LA PRAdera y campos" →
-   * "Establecimiento La Pradera y Campos".
-   */
-  private capitalizarNombreEmpresa(nombre: string): string {
-    return nombre
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((palabra) => {
-        const lower = palabra.toLowerCase();
-        if (lower === "y") return lower;
-        return lower.charAt(0).toUpperCase() + lower.slice(1);
-      })
-      .join(" ");
   }
 
   async findAllWithUsers(user: any): Promise<EmpresaConUsuarios[]> {

@@ -73,3 +73,22 @@ export function translateUniqueViolation(err: unknown, label: string): never {
   }
   throw err as Error;
 }
+
+/**
+ * Normaliza nombres propios (empresas/productores) para exhibición: primera
+ * letra de cada palabra en mayúscula y el resto en minúscula, salvo la palabra
+ * "y" que se conserva en minúscula. Ej: "establecimiento LA PRAdera y campos"
+ * → "Establecimiento La Pradera y Campos".
+ */
+export function capitalizarNombre(nombre: string | null | undefined): string {
+  if (!nombre) return "";
+  return nombre
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((palabra) => {
+      const lower = palabra.toLowerCase();
+      if (lower === "y") return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+}
