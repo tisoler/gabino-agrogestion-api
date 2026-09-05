@@ -166,7 +166,6 @@ export class PrescripcionesPdfService {
   private construirDocumento(p: Prescripcion): TDocumentDefinitions {
     const productor = p.campania?.lote?.empresa?.nombre || "—";
     const campo = p.campania?.lote?.campo?.nombre || "—";
-    const cultivo = p.campania?.cultivo?.nombre || "—";
     const labor = p.labor?.nombre || `Labor #${p.idLabor}`;
     const superficie = fmtHa(p.totalHaAplicacion);
     const fecha = fmtFecha(p.fecha);
@@ -185,6 +184,19 @@ export class PrescripcionesPdfService {
             .join(" · ")
         : p.campania?.lote?.descripcion ||
           `Lote #${p.campania?.lote?.id ?? "—"}`;
+    // Cada lote puede tener un cultivo distinto: se lista una vez por cultivo.
+    const cultivo =
+      loteRows.length > 1
+        ? Array.from(
+            new Set(
+              loteRows
+                .map((l) => l.campania?.cultivo?.nombre)
+                .filter((c): c is string => !!c),
+            ),
+          ).join(" · ") ||
+          p.campania?.cultivo?.nombre ||
+          "—"
+        : p.campania?.cultivo?.nombre || "—";
 
     return {
       pageSize: { width: mm(PAGE_W), height: mm(PAGE_H) },
