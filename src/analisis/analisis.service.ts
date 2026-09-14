@@ -1,21 +1,24 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Lote } from "../entities/lote.entity";
-import { Roles } from "src/constantes";
 import {
   fechasDeSerie,
   NasaPowerService,
   type SerieDiariaPower,
 } from "./nasa-power.service";
+import {
+  normalizarPeriodo,
+  resolverVentana,
+  type PeriodoClima,
+} from "./periodos";
+import { centroideDe, validarAccesoLote } from "./lote-geo.util";
 
-export type PeriodoClima = "actual" | "mes" | "campania";
+export type { PeriodoClima };
 
 export interface DiaClima {
   fecha: string; // "YYYY-MM-DD"
@@ -103,7 +106,7 @@ export class AnalisisService {
     periodoRaw?: string,
     fecha?: string,
   ): Promise<RespuestaClima> {
-    const periodo = this.normalizarPeriodo(periodoRaw);
+    const periodo = normalizarPeriodo(periodoRaw);
 
     const lote = await this.loteRepo.findOne({
       where: { id: idLote },
@@ -111,32 +114,16 @@ export class AnalisisService {
     });
     if (!lote) throw new NotFoundException("Lote no encontrado");
 
-    const isAdmin =
-      user?.roles?.includes(Roles.SYS_ADMIN) ||
-      user?.roles?.includes(Roles.ASESOR_ADMIN);
-    const userEmpresas: number[] = (user?.idEmpresas || []).map((e: any) =>
-      Number(e),
-    );
-    if (!isAdmin && !userEmpresas.includes(lote.idEmpresa)) {
-      Logger.warn(
-        `[analisis] 403: lote ${idLote} (empresa ${lote.idEmpresa}) no accesible ` +
-          `para uid=${user?.id} roles=${JSON.stringify(user?.roles ?? [])} ` +
-          `idEmpresas=${JSON.stringify(userEmpresas)}`,
-        AnalisisService.name,
-      );
-      throw new ForbiddenException(
-        `No tiene permisos para el lote ${idLote} (empresa ${lote.idEmpresa})`,
-      );
-    }
+    validarAccesoLote(lote, user);
 
-    const centro = this.centroide(lote);
+    const centro = centroideDe(lote);
     if (!centro) {
       throw new BadRequestException(
         "El lote no tiene coordenadas para consultar el clima",
       );
     }
 
-    const ventana = this.resolverVentana(periodo, fecha);
+    const ventana = resolverVentana(periodo, fecha);
     const serie = await this.power.getDaily(
       centro.lat,
       centro.lng,
@@ -196,76 +183,6 @@ export class AnalisisService {
       serie: serieOutput,
       serieAnual,
     };
-  }
-
-  // -------------------------------------------------------------------------
-  // Ventanas por período
-  // -------------------------------------------------------------------------
-  private normalizarPeriodo(raw?: string): PeriodoClima {
-    const p = (raw || "actual") as PeriodoClima;
-    if (!["actual", "mes", "campania"].includes(p)) {
-      throw new BadRequestException(
-        "periodo inválido: use actual | mes | campania",
-      );
-    }
-    return p;
-  }
-
-  private resolverVentana(
-    periodo: PeriodoClima,
-    fecha?: string,
-  ): {
-    start: Date;
-    end: Date;
-    campania: string | null;
-    mesParaSerieAnual: { anio: number; mes: number } | null;
-  } {
-    const hoy = new Date();
-
-    if (periodo === "actual") {
-      const start = new Date();
-      start.setDate(start.getDate() - 6);
-      return { start, end: hoy, campania: null, mesParaSerieAnual: null };
-    }
-
-    if (periodo === "mes") {
-      const { anio, mes } = this.parseMes(fecha);
-      return {
-        start: new Date(anio, mes - 1, 1),
-        end: new Date(anio, mes, 0),
-        campania: null,
-        mesParaSerieAnual: { anio, mes },
-      };
-    }
-
-    const campania = this.normalizarCampania(fecha);
-    const anioInicio = 2000 + Number(campania.split("/")[0]);
-    const start = new Date(anioInicio, 6, 1); // 1º de julio
-    return { start, end: hoy, campania, mesParaSerieAnual: null };
-  }
-
-  private parseMes(fecha?: string): { anio: number; mes: number } {
-    if (fecha && /^\d{4}-\d{2}$/.test(fecha)) {
-      const [a, m] = fecha.split("-").map(Number);
-      if (m >= 1 && m <= 12) return { anio: a, mes: m };
-    }
-    const ahora = new Date();
-    return { anio: ahora.getFullYear(), mes: ahora.getMonth() + 1 };
-  }
-
-  private normalizarCampania(fecha?: string): string {
-    const hoy = new Date();
-    const y = hoy.getFullYear();
-    const inicio = hoy.getMonth() >= 6 ? y : y - 1;
-    const defaultCamp = `${String(inicio % 100).padStart(2, "0")}/${String(
-      (inicio + 1) % 100,
-    ).padStart(2, "0")}`;
-
-    if (fecha && /^\d{2}\/\d{2}$/.test(fecha)) {
-      const [a, b] = fecha.split("/").map(Number);
-      if (b === (a + 1) % 100) return fecha;
-    }
-    return defaultCamp;
   }
 
   // -------------------------------------------------------------------------
@@ -365,38 +282,5 @@ export class AnalisisService {
       });
     }
     return filas;
-  }
-
-  private centroide(lote: Lote): { lat: number; lng: number } | null {
-    if (lote.centroide) return lote.centroide;
-    if (!lote.geometria) return null;
-
-    // Fallback: promedio de los vértices del anillo exterior del polígono.
-    const coords = this.coordenadasPoligono(lote.geometria);
-    if (coords.length === 0) return null;
-    const lat = coords.reduce((a, c) => a + c[1], 0) / coords.length;
-    const lng = coords.reduce((a, c) => a + c[0], 0) / coords.length;
-    return { lat, lng };
-  }
-
-  private coordenadasPoligono(geometria: object): Array<[number, number]> {
-    const g = geometria as {
-      type?: string;
-      coordinates?: unknown;
-    };
-    if (g?.type === "Point" && Array.isArray(g.coordinates)) {
-      return [g.coordinates as [number, number]];
-    }
-    const rings =
-      g?.type === "Polygon"
-        ? (g.coordinates as unknown[][])
-        : g?.type === "MultiPolygon"
-          ? (g.coordinates as unknown[][][])[0]
-          : null;
-    if (!rings || rings.length === 0) return [];
-    return (rings[0] as Array<[number, number]>).map((c) => [
-      Number(c[0]),
-      Number(c[1]),
-    ]);
   }
 }

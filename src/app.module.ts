@@ -19,6 +19,7 @@ import { ReportesModule } from "./reportes/reportes.module";
 import { MensajesMasivosModule } from "./mensajes-masivos/mensajes-masivos.module";
 import { CacheModule } from "./cache/cache.module";
 import { AnalisisModule } from "./analisis/analisis.module";
+import { FacturacionModule } from "./facturacion/facturacion.module";
 
 import { Empresa } from "./entities/empresa.entity";
 import { Labor } from "./entities/labor.entity";
@@ -40,6 +41,9 @@ import { Notificacion } from "./entities/notificacion.entity";
 import { Reporte } from "./entities/reporte.entity";
 import { ReporteFila } from "./entities/reporte-fila.entity";
 import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
+import { FacturacionConfig } from "./entities/facturacion-config.entity";
+import { PrecioPizarra } from "./entities/precio-pizarra.entity";
+import { ProduccionPago } from "./entities/produccion-pago.entity";
 
 @Module({
   imports: [
@@ -76,6 +80,9 @@ import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
           Reporte,
           ReporteFila,
           MensajeMasivo,
+          FacturacionConfig,
+          PrecioPizarra,
+          ProduccionPago,
         ],
         synchronize: false, // Migraciones manuales
         logging: true,
@@ -100,6 +107,7 @@ import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
     MensajesMasivosModule,
     CacheModule,
     AnalisisModule,
+    FacturacionModule,
   ],
 })
 export class AppModule {}
