@@ -373,7 +373,7 @@ export class PrescripcionesPdfService {
               alignment: "right",
             },
             {
-              text: fmtDosisCantidad(i.cantidadTotal, i.insumo?.unidad, 2),
+              text: fmtDosisCantidad(i.cantidadTotal, i.insumo?.unidad, 1),
               fontSize: 10.5,
               alignment: "right",
             },
