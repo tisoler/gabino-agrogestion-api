@@ -165,7 +165,19 @@ export class PrescripcionesPdfService {
 
   private construirDocumento(p: Prescripcion): TDocumentDefinitions {
     const productor = p.campania?.lote?.empresa?.nombre || "—";
-    const campo = p.campania?.lote?.campo?.nombre || "—";
+    // Campos: igual que en la vista de impresión, con varios lotes se listan
+    // todos (dedupados); con uno solo, el primero como siempre.
+    const loteRows = p.lotes ?? [];
+    const campo =
+      loteRows.length > 1
+        ? Array.from(
+            new Set(
+              loteRows.map(
+                (l) => l.campania?.lote?.campo?.nombre || "Sin campo",
+              ),
+            ),
+          ).join(" · ")
+        : p.campania?.lote?.campo?.nombre || "—";
     const labor = p.labor?.nombre || `Labor #${p.idLabor}`;
     const superficie = fmtHa(p.totalHaAplicacion);
     const fecha = fmtFecha(p.fecha);
@@ -173,7 +185,6 @@ export class PrescripcionesPdfService {
 
     // Lotes: con uno solo se muestra como siempre; con varios, cada lote con
     // su superficie para que la prescripción quede legible en una sola hoja.
-    const loteRows = p.lotes ?? [];
     const loteText =
       loteRows.length > 1
         ? loteRows
