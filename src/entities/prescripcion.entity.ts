@@ -23,6 +23,14 @@ export class Prescripcion {
   fecha: string;
 
   /**
+   * Secuencial dentro del año de `fecha` (el número visible es "AA-numero",
+   * ej. 26-104; arranca en 1 cada año). Admite valores iguales entre años
+   * distintos; es único dentro del año (índice uq_prescripcion_anio_numero).
+   */
+  @Column()
+  numero: number;
+
+  /**
    * Producción principal (primer lote). Se conserva por compatibilidad:
    * el listado de lotes real vive en `lotes` (prescripcion_campania).
    */

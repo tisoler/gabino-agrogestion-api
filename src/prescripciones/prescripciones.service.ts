@@ -7,7 +7,7 @@ import {
 import { Roles } from "src/constantes";
 import { NotificacionesService } from "../notificaciones/notificaciones.service";
 import { InjectRepository } from "@nestjs/typeorm";
-import { DataSource, In, Repository } from "typeorm";
+import { DataSource, EntityManager, In, Repository } from "typeorm";
 import { Prescripcion } from "../entities/prescripcion.entity";
 import { PrescripcionInsumo } from "../entities/prescripcion-insumo.entity";
 import { PrescripcionCampania } from "../entities/prescripcion-campania.entity";
@@ -43,6 +43,7 @@ export interface PrescripcionListItem {
   labor: Labor | null;
   insumoCount: number;
   lotesCount: number;
+  numero: number;
 }
 
 @Injectable()
@@ -190,6 +191,7 @@ export class PrescripcionesService {
       labor: p.labor ?? null,
       insumoCount: countByPrescripcion.get(p.id) ?? 0,
       lotesCount: lotesByPrescripcion.get(p.id) ?? 0,
+      numero: p.numero,
     }));
   }
 
@@ -425,6 +427,7 @@ export class PrescripcionesService {
     // Orden estable: la primera producción queda en prescripcion.id_campania
     // (referencia principal por compatibilidad).
     const campaniasOrdenadas = [...campanias].sort((a, b) => a.id - b.id);
+    const anio = this.anioDeFecha(dto.fecha);
 
     const result = await this.dataSource.transaction(async (manager) => {
       const prescripcionRepo = manager.getRepository(Prescripcion);
@@ -436,6 +439,7 @@ export class PrescripcionesService {
 
       const prescripcion = prescripcionRepo.create({
         fecha: dto.fecha,
+        numero: await this.siguienteNumero(manager, anio),
         idCampania: campaniasOrdenadas[0].id,
         idLabor: dto.idLabor,
         totalHaAplicacion: totalHa,
@@ -500,6 +504,41 @@ export class PrescripcionesService {
 
     await this.notificarNuevaPrescripcion(result, campaniasOrdenadas[0], user);
     return this.findOne(result, user);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Número año-secuencial (26-1, 26-104)
+  // ---------------------------------------------------------------------------
+  /**
+   * Año de la fecha de la prescripción (el número visible es "AA-numero" y
+   * el secuencial arranca en 1 cada año).
+   */
+  private anioDeFecha(fecha: string): number {
+    const anio = Number(String(fecha ?? "").slice(0, 4));
+    if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) {
+      throw new BadRequestException("La fecha de la prescripción es inválida");
+    }
+    return anio;
+  }
+
+  /**
+   * Siguiente secuencial del año. Lock de aviso por año dentro de la
+   * transacción para que dos creaciones concurrentes no repitan número; el
+   * índice único (año, numero) lo respalda.
+   */
+  private async siguienteNumero(
+    manager: EntityManager,
+    anio: number,
+  ): Promise<number> {
+    await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+      `presc-num-${anio}`,
+    ]);
+    const rows: { max: string | null }[] = await manager.query(
+      `SELECT MAX(numero) AS max FROM prescripcion
+       WHERE (EXTRACT(YEAR FROM fecha))::int = $1`,
+      [anio],
+    );
+    return (rows[0]?.max != null ? Number(rows[0].max) : 0) + 1;
   }
 
   // ---------------------------------------------------------------------------

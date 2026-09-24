@@ -56,6 +56,14 @@ function fmtHa(v: number | null | undefined, maxDec = 2): string {
   return `${fmtNum(v, maxDec)} ha`;
 }
 
+/** Número visible año-número: "26-104" (año de 2 dígitos + secuencial). */
+function fmtNro(fecha: string, numero: number | null | undefined): string {
+  if (numero == null) return "—";
+  const anio = Number(String(fecha ?? "").slice(0, 4));
+  if (!Number.isInteger(anio)) return String(numero);
+  return `${String(anio).slice(-2)}-${numero}`;
+}
+
 function convertirUnidad(
   valor: number | null | undefined,
   unidad: string | null | undefined,
@@ -223,7 +231,7 @@ export class PrescripcionesPdfService {
         },
         {
           stack: [
-            this.titulo(fecha),
+            this.titulo(fmtNro(p.fecha, p.numero), fecha),
             this.datosGrid(
               productor,
               campo,
@@ -242,14 +250,14 @@ export class PrescripcionesPdfService {
     };
   }
 
-  private titulo(fecha: string): Content {
+  private titulo(nro: string, fecha: string): Content {
     return {
       table: {
         widths: ["*", "auto"],
         body: [
           [
             {
-              text: "PRESCRIPCIÓN",
+              text: `PRESCRIPCIÓN #${nro}`,
               bold: true,
               fontSize: 11.25,
               characterSpacing: 0.375,
