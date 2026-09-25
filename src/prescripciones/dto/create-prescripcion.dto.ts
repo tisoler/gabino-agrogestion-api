@@ -87,14 +87,4 @@ export class CreatePrescripcionDto {
   @ValidateNested({ each: true })
   @Type(() => CreatePrescripcionInsumoDto)
   insumos?: CreatePrescripcionInsumoDto[];
-
-  @ApiPropertyOptional({
-    description:
-      "UID del asesor dueño de la numeración. Sólo sys-admin (el asesor usa " +
-      "su propio UID automáticamente). Si la empresa tiene un único asesor " +
-      "vinculado se resuelve solo.",
-  })
-  @IsOptional()
-  @IsString()
-  uidAsesor?: string;
 }

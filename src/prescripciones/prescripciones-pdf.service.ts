@@ -56,12 +56,14 @@ function fmtHa(v: number | null | undefined, maxDec = 2): string {
   return `${fmtNum(v, maxDec)} ha`;
 }
 
-/** Número visible año-número: "26-104" (año de 2 dígitos + secuencial). */
-function fmtNro(fecha: string, numero: number | null | undefined): string {
-  if (numero == null) return "—";
-  const anio = Number(String(fecha ?? "").slice(0, 4));
-  if (!Number.isInteger(anio)) return String(numero);
-  return `${String(anio).slice(-2)}-${numero}`;
+/** Número visible E-AA-N: "12-26-104" (empresa-año 2 dígitos-secuencial). */
+function fmtNro(
+  numEmpresa: number | null | undefined,
+  numAnio: number | null | undefined,
+  numero: number | null | undefined,
+): string {
+  if (numEmpresa == null || numAnio == null || numero == null) return "—";
+  return `${numEmpresa}-${String(numAnio).padStart(2, "0").slice(-2)}-${numero}`;
 }
 
 function convertirUnidad(
@@ -231,7 +233,7 @@ export class PrescripcionesPdfService {
         },
         {
           stack: [
-            this.titulo(fmtNro(p.fecha, p.numero), fecha),
+            this.titulo(fmtNro(p.numEmpresa, p.numAnio, p.numero), fecha),
             this.datosGrid(
               productor,
               campo,
