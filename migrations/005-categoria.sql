@@ -2,8 +2,8 @@
 -- Entidad "categoria_insumo" (catálogo de categorías de insumos) y columna
 -- id_categoria en la tabla "insumo".
 --
--- La categoría es SIEMPRE global (no tiene id_empresa): la crean sys-admin o
--- asesor-admin y el resto de roles sólo las seleccionan.
+-- La categoría es SIEMPRE global (no tiene id_empresa): la crean sys-admin
+-- y el resto de roles sólo las seleccionan.
 
 CREATE TABLE IF NOT EXISTS "categoria_insumo" (
     "id"            SERIAL PRIMARY KEY,

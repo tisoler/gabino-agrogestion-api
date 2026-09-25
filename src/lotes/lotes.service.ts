@@ -25,7 +25,7 @@ export class LotesService {
   /**
    * Lista lotes visibles para el usuario.
    *
-   *  - sys-admin / asesor-admin: ve todos los lotes (sin filtro de empresa).
+   *  - sys-admin: ve todos los lotes (sin filtro de empresa).
    *    Si llega `currentEmpresaId`, filtra a esa empresa concreta.
    *  - asesor / productor: ve los lotes de las empresas en su `idEmpresas`.
    *    Si llega `currentEmpresaId` y está en su `idEmpresas`, filtra a esa.
@@ -33,15 +33,13 @@ export class LotesService {
    *
    * No hay lotes "globales" (la columna `id_empresa` es NOT NULL), por lo
    * que no hay rama para "ver todos sin filtro de empresa" fuera de
-   * sys-admin / asesor-admin.
+   * sys-admin.
    */
   findAll(user: any, currentEmpresaId?: number) {
     const query = this.loteRepository
       .createQueryBuilder("lote")
       .leftJoinAndSelect("lote.campo", "campo");
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -161,9 +159,7 @@ export class LotesService {
     user: any,
     currentEmpresaId?: number,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
     let idEmpresa: number;
     if (isAdmin) {
@@ -224,9 +220,7 @@ export class LotesService {
       throw new NotFoundException("Lote no encontrado");
     }
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );

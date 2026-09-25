@@ -32,11 +32,10 @@ export class CategoriasService {
 
   private assertCanManage(user: any) {
     const roles: string[] = user.roles || [];
-    const canManage =
-      roles.includes(Roles.SYS_ADMIN) || roles.includes(Roles.ASESOR_ADMIN);
+    const canManage = roles.includes(Roles.SYS_ADMIN);
     if (!canManage) {
       throw new ForbiddenException(
-        "Solo sys-admin o asesor-admin pueden crear o editar categorías de insumo",
+        "Solo sys-admin puede crear o editar categorías de insumo",
       );
     }
   }

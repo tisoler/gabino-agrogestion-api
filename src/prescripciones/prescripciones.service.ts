@@ -20,6 +20,7 @@ import { Lote } from "../entities/lote.entity";
 import { CreatePrescripcionDto } from "./dto/create-prescripcion.dto";
 import { PrescripcionesPdfService } from "./prescripciones-pdf.service";
 import { SpacesService } from "../spaces/spaces.service";
+import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 export interface FindPrescripcionesFilters {
   empresaId?: number;
@@ -44,6 +45,10 @@ export interface PrescripcionListItem {
   insumoCount: number;
   lotesCount: number;
   numero: number;
+  /** UID del asesor dueño de la numeración (NULL = legado). */
+  uidAsesor: string | null;
+  /** Asesor resuelto (sólo informativo; NULL si es legado o no resolvible). */
+  asesor: { uid: string; nombre: string } | null;
 }
 
 @Injectable()
@@ -67,6 +72,7 @@ export class PrescripcionesService {
     private notificaciones: NotificacionesService,
     private pdfService: PrescripcionesPdfService,
     private spaces: SpacesService,
+    private cache: FirestoreCacheService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -76,9 +82,7 @@ export class PrescripcionesService {
     user: any,
     filters: FindPrescripcionesFilters = {},
   ): Promise<PrescripcionListItem[]> {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -180,6 +184,9 @@ export class PrescripcionesService {
       lotesByPrescripcion.set(Number(row.id_prescripcion), Number(row.cnt));
     }
 
+    // Nombres de asesores (best-effort, cache 4h) para la columna sys-admin.
+    const nombreAsesor = await this.nombresAsesores().catch(() => new Map());
+
     return prescripciones.map<PrescripcionListItem>((p) => ({
       id: p.id,
       fecha: p.fecha,
@@ -192,6 +199,11 @@ export class PrescripcionesService {
       insumoCount: countByPrescripcion.get(p.id) ?? 0,
       lotesCount: lotesByPrescripcion.get(p.id) ?? 0,
       numero: p.numero,
+      uidAsesor: p.uidAsesor ?? null,
+      asesor:
+        p.uidAsesor && nombreAsesor.get(p.uidAsesor)
+          ? { uid: p.uidAsesor, nombre: nombreAsesor.get(p.uidAsesor)! }
+          : null,
     }));
   }
 
@@ -395,6 +407,31 @@ export class PrescripcionesService {
       "crear prescripciones en esta campaña",
     );
 
+    // Atribución de la numeración: el asesor usa su propio UID; el sys-admin
+    // indica el asesor (o se resuelve si la empresa tiene uno solo). El
+    // productor no puede crear prescripciones (lo bloquea el controller).
+    const esAsesor = user.roles?.includes(Roles.ASESOR);
+    const esSysAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+    if (!esAsesor && !esSysAdmin) {
+      throw new ForbiddenException("Solo asesores pueden crear prescripciones");
+    }
+    const idEmpresa = campanias[0].lote!.idEmpresa;
+    let uidAsesor: string;
+    if (esAsesor) {
+      uidAsesor = user.id;
+    } else if (dto.uidAsesor) {
+      await this.assertUidAsesorValido(dto.uidAsesor);
+      uidAsesor = dto.uidAsesor;
+    } else {
+      const vinculados = await this.uidsAsesoresDeEmpresa(idEmpresa);
+      if (vinculados.length !== 1) {
+        throw new BadRequestException(
+          "Indicar uidAsesor: la empresa tiene 0 o varios asesores vinculados",
+        );
+      }
+      uidAsesor = vinculados[0];
+    }
+
     const labor = await this.laborRepo.findOne({ where: { id: dto.idLabor } });
     if (!labor) throw new BadRequestException("La labor indicada no existe");
 
@@ -439,7 +476,8 @@ export class PrescripcionesService {
 
       const prescripcion = prescripcionRepo.create({
         fecha: dto.fecha,
-        numero: await this.siguienteNumero(manager, anio),
+        numero: await this.siguienteNumero(manager, uidAsesor, anio),
+        uidAsesor,
         idCampania: campaniasOrdenadas[0].id,
         idLabor: dto.idLabor,
         totalHaAplicacion: totalHa,
@@ -522,30 +560,56 @@ export class PrescripcionesService {
   }
 
   /**
-   * Siguiente secuencial del año. Lock de aviso por año dentro de la
-   * transacción para que dos creaciones concurrentes no repitan número; el
-   * índice único (año, numero) lo respalda.
+   * Siguiente secuencial del asesor y año. Lock de aviso por (asesor, año)
+   * dentro de la transacción para que dos creaciones concurrentes no repitan
+   * número; el índice único parcial lo respalda.
    */
   private async siguienteNumero(
     manager: EntityManager,
+    uidAsesor: string,
     anio: number,
   ): Promise<number> {
     await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
-      `presc-num-${anio}`,
+      `presc-num-${uidAsesor}-${anio}`,
     ]);
     const rows: { max: string | null }[] = await manager.query(
       `SELECT MAX(numero) AS max FROM prescripcion
-       WHERE (EXTRACT(YEAR FROM fecha))::int = $1`,
-      [anio],
+       WHERE uid_asesor = $1 AND (EXTRACT(YEAR FROM fecha))::int = $2`,
+      [uidAsesor, anio],
     );
     return (rows[0]?.max != null ? Number(rows[0].max) : 0) + 1;
+  }
+
+  /** Mapa uid → nombre de usuarios (cache Firestore 4h, best-effort). */
+  private async nombresAsesores(): Promise<Map<string, string>> {
+    const usuarios = await this.cache.getOrLoadUsuarios();
+    return new Map(usuarios.map((u) => [u.uid, u.nombreUsuario]));
+  }
+
+  /** UIDs de asesores vinculados a una empresa (por su `idEmpresas`). */
+  private async uidsAsesoresDeEmpresa(idEmpresa: number): Promise<string[]> {
+    const usuarios = await this.cache.getOrLoadUsuarios();
+    return usuarios
+      .filter(
+        (u) =>
+          u.roles.includes(Roles.ASESOR) && u.idEmpresas.includes(idEmpresa),
+      )
+      .map((u) => u.uid);
+  }
+
+  /** Valida que un UID corresponda a un usuario con rol asesor. */
+  private async assertUidAsesorValido(uid: string): Promise<void> {
+    const auth = await this.cache.getOrLoadAuth(uid).catch(() => null);
+    if (!auth || !auth.roles.includes(Roles.ASESOR)) {
+      throw new BadRequestException("El uidAsesor no corresponde a un asesor");
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Acceso por empresa
   // ---------------------------------------------------------------------------
   /**
-   * Los admins (sys-admin / asesor-admin) acceden a todo; el resto sólo a
+   * El sys-admin accede a todo; el resto sólo a
    * prescripciones de campañas cuyo lote pertenece a una de sus empresas
    * (mismo patrón que assertCampaniaAcceso de campañas).
    */
@@ -554,9 +618,7 @@ export class PrescripcionesService {
     user: any,
     accion: string,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     if (isAdmin) return;
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
@@ -570,7 +632,7 @@ export class PrescripcionesService {
   // Notificaciones
   // ---------------------------------------------------------------------------
   /**
-   * Cuando un asesor o asesor-admin crea una prescripción para una campaña
+   * Cuando un asesor crea una prescripción para una campaña
    * cuyo lote tiene otro usuario como dueño, le llega una notificación con el
    * link a la prescripción.
    */
@@ -580,8 +642,7 @@ export class PrescripcionesService {
     user: any,
   ) {
     const esAsesor = user?.roles?.includes(Roles.ASESOR);
-    const esAsesorAdmin = user?.roles?.includes(Roles.ASESOR_ADMIN);
-    if (!esAsesor && !esAsesorAdmin) return;
+    if (!esAsesor) return;
 
     const lote = campania.lote;
     if (!lote?.idUsuario || lote.idUsuario === user.id) return;

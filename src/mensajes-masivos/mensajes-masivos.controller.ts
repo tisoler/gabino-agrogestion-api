@@ -33,12 +33,12 @@ export class MensajesMasivosController {
 
   @Get()
   @Permissions("lectura:mensaje-masivo")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Listar el historial de mensajes masivos",
     description:
       "Devuelve los registros (más reciente primero) con el cultivo " +
-      "asociado. Sys-admin y asesor-admin ven todo; el asesor sólo sus " +
+      "asociado. Sys-admin ve todo; el asesor sólo sus " +
       "propios envíos. El filtrado y la cascada se hacen en el FE.",
   })
   findAll(@Request() req) {
@@ -47,7 +47,7 @@ export class MensajesMasivosController {
 
   @Get("destinatarios")
   @Permissions("lectura:mensaje-masivo")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Destinatarios para un cultivo en un período",
     description:
@@ -71,7 +71,7 @@ export class MensajesMasivosController {
 
   @Get(":id")
   @Permissions("lectura:mensaje-masivo")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({ summary: "Detalle de un mensaje masivo" })
   findOne(@Param("id", ParseIntPipe) id: number, @Request() req) {
     return this.service.findOne(id, req.user);
@@ -79,7 +79,7 @@ export class MensajesMasivosController {
 
   @Post()
   @Permissions("escritura:mensaje-masivo")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR_ADMIN, RolesConst.ASESOR)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Registrar un envío de mensaje masivo",
     description:

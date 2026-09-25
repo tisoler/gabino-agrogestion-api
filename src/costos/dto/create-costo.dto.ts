@@ -6,7 +6,7 @@ import {
   IsNumber,
   IsIn,
 } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateCostoDto {
   @ApiProperty()
@@ -40,6 +40,22 @@ export class CreateCostoDto {
   @IsInt()
   @IsOptional()
   idEmpresa?: number;
+
+  @ApiPropertyOptional({
+    description:
+      "Alcance: global (sólo sys-admin), asesor (todos sus productores) o empresa (default)",
+    enum: ["global", "asesor", "empresa"],
+  })
+  @IsOptional()
+  @IsIn(["global", "asesor", "empresa"])
+  alcance?: "global" | "asesor" | "empresa";
+
+  @ApiPropertyOptional({
+    description: "UID del asesor (sólo sys-admin con alcance asesor)",
+  })
+  @IsOptional()
+  @IsString()
+  uidAsesor?: string;
 
   @ApiProperty({ required: false, default: true })
   @IsBoolean()

@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-  BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -18,6 +17,13 @@ import {
   normalizeNombre,
   translateUniqueViolation,
 } from "../utils/nombre";
+import {
+  aplicarVisibilidadAlcance,
+  exigirEdicionAlcance,
+  resolverAlcanceCambio,
+  resolverAlcanceCreate,
+} from "../utils/alcance";
+import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 @Injectable()
 export class CultivosService {
@@ -26,27 +32,51 @@ export class CultivosService {
     private cultivoRepository: Repository<Cultivo>,
     @InjectRepository(Variedad)
     private variedadRepository: Repository<Variedad>,
+    private cache: FirestoreCacheService,
   ) {}
 
-  findAll(
+  async findAll(
     user: any,
     all?: boolean,
     companyIds?: string,
     currentEmpresaId?: number,
     soloActivos?: boolean,
     scope?: string,
+    uidAsesor?: string,
   ) {
     const query = this.cultivoRepository
       .createQueryBuilder("cultivo")
       .leftJoinAndSelect("cultivo.variedades", "variedad");
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
-    // Filtros unificados para todos los roles (sys-admin, asesor-admin, asesor, productor):
+    // Filtros unificados para todos los roles (sys-admin, asesor, productor):
     if (scope === "global") {
-      query.andWhere("cultivo.id_empresa IS NULL");
+      query
+        .andWhere("cultivo.id_empresa IS NULL")
+        .andWhere("cultivo.uid_propietario IS NULL");
+    } else if (scope === "asesor") {
+      // Ítems de asesor (con dueño). Opcionalmente de un asesor puntual.
+      query.andWhere("cultivo.uid_propietario IS NOT NULL");
+      if (uidAsesor) {
+        query.andWhere("cultivo.uid_propietario = :filtroAsesor", {
+          filtroAsesor: uidAsesor,
+        });
+      }
+      if (!isAdmin) {
+        const idsAsesor: number[] = (user.idEmpresas || [])
+          .map((e: any) => Number(e))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        await aplicarVisibilidadAlcance({
+          qb: query,
+          alias: "cultivo",
+          user,
+          ids: idsAsesor,
+          currentEmpresaId,
+          cache: this.cache,
+          soloConDuenio: true,
+        });
+      }
     } else if (scope === "empresa") {
       if (currentEmpresaId) {
         query.andWhere("cultivo.id_empresa = :companyId", {
@@ -60,14 +90,14 @@ export class CultivosService {
         const ids: number[] = (user.idEmpresas || [])
           .map((e: any) => Number(e))
           .filter((n) => Number.isFinite(n) && n > 0);
-        if (ids.length === 0) {
-          query.andWhere("cultivo.id_empresa IS NULL");
-        } else {
-          query.andWhere(
-            "(cultivo.id_empresa IS NULL OR cultivo.id_empresa IN (:...ids))",
-            { ids },
-          );
-        }
+        await aplicarVisibilidadAlcance({
+          qb: query,
+          alias: "cultivo",
+          user,
+          ids,
+          currentEmpresaId,
+          cache: this.cache,
+        });
       }
     }
 
@@ -92,30 +122,31 @@ export class CultivosService {
     user: any,
     currentEmpresaId?: number,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
-
-    let idEmpresa: number | null;
-    if (isAdmin) {
-      idEmpresa = createCultivoDto.idEmpresa ?? null;
-    } else {
-      if (!currentEmpresaId) {
-        throw new BadRequestException(
-          "El usuario no tiene una empresa actual seleccionada",
-        );
-      }
-      idEmpresa = createCultivoDto.idEmpresa ?? currentEmpresaId;
-    }
+    const { alcance, uidAsesor, ...resto } = createCultivoDto;
+    const scope = await resolverAlcanceCreate({
+      alcance,
+      uidAsesor,
+      idEmpresa: createCultivoDto.idEmpresa,
+      currentEmpresaId,
+      user,
+      cache: this.cache,
+    });
 
     const nombre = normalizeNombre(createCultivoDto.nombre);
-    await assertNombreUnico(this.cultivoRepository, nombre, idEmpresa);
+    await assertNombreUnico(
+      this.cultivoRepository,
+      nombre,
+      scope.idEmpresa,
+      undefined,
+      scope.uidPropietario,
+    );
 
     try {
       const cultivo = this.cultivoRepository.create({
-        ...createCultivoDto,
+        ...resto,
         nombre,
-        idEmpresa,
+        uidPropietario: scope.uidPropietario,
+        idEmpresa: scope.idEmpresa,
       });
       return await this.cultivoRepository.save(cultivo);
     } catch (e) {
@@ -127,32 +158,47 @@ export class CultivosService {
     const cultivo = await this.cultivoRepository.findOne({ where: { id } });
     if (!cultivo) throw new NotFoundException("Cultivo no encontrado");
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
 
-    if (!isAdmin) {
-      if (cultivo.idEmpresa === null) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar un cultivo global",
-        );
-      }
-      if (!userEmpresas.includes(cultivo.idEmpresa)) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar un cultivo de otra empresa",
-        );
-      }
-    }
+    exigirEdicionAlcance(cultivo, user, userEmpresas, "cultivo");
 
     // Empresa destino (alcance). Un no-admin sólo puede mover entre sus propias
-    // empresas (nunca a global).
-    if (
+    // empresas (nunca a global); con alcance explícito vale la regla general.
+    if (updateCultivoDto.alcance !== undefined) {
+      const cambio = await resolverAlcanceCambio({
+        alcance: updateCultivoDto.alcance,
+        uidAsesor: updateCultivoDto.uidAsesor,
+        idEmpresa: updateCultivoDto.idEmpresa,
+        actual: {
+          uidPropietario: cultivo.uidPropietario,
+          idEmpresa: cultivo.idEmpresa,
+        },
+        user,
+        cache: this.cache,
+      });
+      if (cambio) {
+        await assertNombreUnico(
+          this.cultivoRepository,
+          normalizeNombre(updateCultivoDto.nombre ?? cultivo.nombre),
+          cambio.idEmpresa,
+          id,
+          cambio.uidPropietario,
+        );
+        cultivo.uidPropietario = cambio.uidPropietario;
+        cultivo.idEmpresa = cambio.idEmpresa;
+      }
+    } else if (
       updateCultivoDto.idEmpresa !== undefined &&
       updateCultivoDto.idEmpresa !== cultivo.idEmpresa
     ) {
+      if (cultivo.uidPropietario != null) {
+        throw new ForbiddenException(
+          "Para cambiar el alcance de este cultivo indique alcance",
+        );
+      }
       const nuevaEmpresa = updateCultivoDto.idEmpresa;
       if (!isAdmin) {
         if (nuevaEmpresa === null || !userEmpresas.includes(nuevaEmpresa)) {
@@ -166,6 +212,7 @@ export class CultivosService {
         normalizeNombre(updateCultivoDto.nombre ?? cultivo.nombre),
         nuevaEmpresa,
         id,
+        null,
       );
       cultivo.idEmpresa = nuevaEmpresa;
     }
@@ -178,6 +225,7 @@ export class CultivosService {
           nuevoNombre,
           cultivo.idEmpresa,
           id,
+          cultivo.uidPropietario,
         );
         cultivo.nombre = nuevoNombre;
       }
@@ -212,9 +260,7 @@ export class CultivosService {
     });
     if (!cultivo) throw new NotFoundException("Cultivo no encontrado");
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -231,9 +277,12 @@ export class CultivosService {
 
     const idEmpresa = cultivo.idEmpresa ?? currentEmpresaId ?? null;
 
+    // La variedad hereda el alcance del cultivo padre (incluido el dueño
+    // asesor): siempre comparten scope.
     const variedad = this.variedadRepository.create({
       ...createVariedadDto,
       idEmpresa,
+      uidPropietario: cultivo.uidPropietario ?? null,
     });
     return this.variedadRepository.save(variedad);
   }
@@ -246,27 +295,17 @@ export class CultivosService {
     const variedad = await this.variedadRepository.findOne({ where: { id } });
     if (!variedad) throw new NotFoundException("Variedad no encontrada");
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
 
-    if (!isAdmin) {
-      if (variedad.idEmpresa === null) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar una variedad global",
-        );
-      }
-      if (!userEmpresas.includes(variedad.idEmpresa)) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar una variedad de otra empresa",
-        );
-      }
-    }
+    exigirEdicionAlcance(variedad, user, userEmpresas, "variedad");
 
-    Object.assign(variedad, updateVariedadDto);
+    // La variedad no cambia de alcance ni de cultivo (hereda el del padre).
+    const resto: Partial<UpdateVariedadDto> = { ...updateVariedadDto };
+    delete resto.idEmpresa;
+    delete resto.idCultivo;
+    Object.assign(variedad, resto);
     return this.variedadRepository.save(variedad);
   }
 }

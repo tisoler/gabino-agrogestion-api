@@ -37,6 +37,8 @@ export class PrescripcionesController {
   constructor(private readonly service: PrescripcionesService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @Permissions("escritura:prescripcion")
   @ApiOperation({
     summary: "Crear una prescripción (asigna labor e insumos a la campaña)",
@@ -169,6 +171,8 @@ export class PrescripcionesController {
   }
 
   @Patch(":id/anulada")
+  @UseGuards(RolesGuard)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @Permissions("escritura:prescripcion")
   @ApiOperation({
     summary: "Anular o recuperar una prescripción (borrado lógico)",

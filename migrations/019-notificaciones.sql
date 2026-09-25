@@ -1,5 +1,5 @@
 -- Gabino Agrogestión - Migración 019
--- Notificaciones: avisos al dueño de un lote cuando un asesor/asesor-admin
+-- Notificaciones: avisos al dueño de un lote cuando un asesor
 -- genera una producción (campaña) o prescripción para uno de sus lotes.
 --
 -- Modelo:

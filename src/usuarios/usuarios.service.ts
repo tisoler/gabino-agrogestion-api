@@ -53,9 +53,7 @@ export class UsuariosService {
       );
     }
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -225,7 +223,7 @@ export class UsuariosService {
    *
    * Reglas:
    *  - El destinatario no puede ser sys-admin.
-   *  - sys-admin / asesor-admin: pueden tocar cualquier usuario.
+   *  - sys-admin: puede tocar cualquier usuario.
    *  - asesor: puede tocar su propio nombre o el de usuarios que compartan
    *    alguna de sus idEmpresas.
    *
@@ -262,9 +260,7 @@ export class UsuariosService {
 
     // Autorización: admin puede tocar a cualquiera; el resto sólo a sí mismo
     // o a usuarios de sus propias empresas.
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     if (!isAdmin && uid !== user.id) {
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),
@@ -306,7 +302,7 @@ export class UsuariosService {
    * Reglas:
    *  - El destinatario no puede ser sys-admin (la edición es para usuarios
    *    con rol asesor/productor).
-   *  - sys-admin / asesor-admin: pueden tocar cualquier usuario.
+   *  - sys-admin: puede tocar cualquier usuario.
    *  - asesor: puede tocar su propio celular o el de usuarios que compartan
    *    alguna de sus idEmpresas.
    *
@@ -351,9 +347,7 @@ export class UsuariosService {
 
     // Autorización: admin puede tocar a cualquiera; el resto sólo a sí mismo
     // o a usuarios de sus propias empresas.
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     if (!isAdmin && uid !== user.id) {
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),

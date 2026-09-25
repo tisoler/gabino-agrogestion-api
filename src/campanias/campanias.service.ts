@@ -31,6 +31,8 @@ import {
   type ResultadosCampania,
 } from "./campanias.calculos";
 import { NotificacionesService } from "../notificaciones/notificaciones.service";
+import { asesoraAlgunaEmpresa, puedeUsarItemAsesorEn } from "../utils/alcance";
+import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 export interface CampaniaTotales extends ResultadosCampania {
   supSembrada: number;
@@ -43,6 +45,9 @@ export interface CampaniaListItem {
   idLote: number;
   idCultivo: number;
   idVariedad: number | null;
+  numEmpresa: number;
+  numAnio: number;
+  numSeq: number;
   lote?: Lote | null;
   cultivo?: Cultivo | null;
   variedad?: Variedad | null;
@@ -76,6 +81,7 @@ export class CampaniasService {
     @InjectRepository(Cultivo) private cultivoRepo: Repository<Cultivo>,
     @InjectRepository(Variedad) private variedadRepo: Repository<Variedad>,
     private notificaciones: NotificacionesService,
+    private cache: FirestoreCacheService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -94,9 +100,7 @@ export class CampaniasService {
    * insumos / costos) NO se incluyen en el listado.
    */
   async findAll(user: any, filters: FindCampaniasFilters = {}) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -212,6 +216,9 @@ export class CampaniasService {
         idLote: c.idLote,
         idCultivo: c.idCultivo,
         idVariedad: c.idVariedad,
+        numEmpresa: c.numEmpresa,
+        numAnio: c.numAnio,
+        numSeq: c.numSeq,
         lote: c.lote,
         cultivo: c.cultivo,
         variedad: c.variedad,
@@ -277,27 +284,49 @@ export class CampaniasService {
 
     await this.assertProduccionUnica(dto.idLote, dto.campania, dto.idCultivo);
 
-    const campania = this.campaniaRepo.create({
-      campania: dto.campania,
-      idLote: dto.idLote,
-      idCultivo: dto.idCultivo,
-      idVariedad: dto.idVariedad ?? null,
-      supSembrada: dto.supSembrada ?? null,
-      supCosechada: dto.supCosechada ?? null,
-      prodNetaTotalQq: dto.prodNetaTotalQq ?? null,
-      precioXQq: dto.precioXQq ?? null,
-      alquilerQqHa: dto.alquilerQqHa ?? null,
-      comercializacionPct: dto.comercializacionPct ?? null,
-      cosechaXHa: dto.cosechaXHa ?? null,
-      activo: true,
-    });
-    try {
-      const saved = await this.campaniaRepo.save(campania);
-      await this.notificarNuevaProduccion(saved, lote, user);
-      return saved;
-    } catch (e) {
-      this.throwProduccionDuplicada(e);
-    }
+    // Número E-AA-N: ámbito productor (empresa del lote) + año de creación
+    // en 2 dígitos. Se asigna en transacción con lock por (empresa, año);
+    // es inmutable.
+    const numEmpresa = lote.idEmpresa;
+    const numAnio = new Date().getFullYear() % 100;
+    const saved = await this.campaniaRepo.manager.transaction(
+      async (manager) => {
+        await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+          `camp-num-${numEmpresa}-${numAnio}`,
+        ]);
+        const rows: { max: string | null }[] = await manager.query(
+          `SELECT MAX(num_seq) AS max FROM campania
+           WHERE num_empresa = $1 AND num_anio = $2`,
+          [numEmpresa, numAnio],
+        );
+        const numSeq = (rows[0]?.max != null ? Number(rows[0].max) : 0) + 1;
+        const repo = manager.getRepository(Campania);
+        const campania = repo.create({
+          campania: dto.campania,
+          idLote: dto.idLote,
+          idCultivo: dto.idCultivo,
+          idVariedad: dto.idVariedad ?? null,
+          supSembrada: dto.supSembrada ?? null,
+          supCosechada: dto.supCosechada ?? null,
+          prodNetaTotalQq: dto.prodNetaTotalQq ?? null,
+          precioXQq: dto.precioXQq ?? null,
+          alquilerQqHa: dto.alquilerQqHa ?? null,
+          comercializacionPct: dto.comercializacionPct ?? null,
+          cosechaXHa: dto.cosechaXHa ?? null,
+          numEmpresa,
+          numAnio,
+          numSeq,
+          activo: true,
+        });
+        try {
+          return await repo.save(campania);
+        } catch (e) {
+          this.throwProduccionDuplicada(e);
+        }
+      },
+    );
+    await this.notificarNuevaProduccion(saved, lote, user);
+    return saved;
   }
 
   async update(id: number, dto: UpdateCampaniaDto, user: any) {
@@ -505,7 +534,7 @@ export class CampaniasService {
   // Notificaciones
   // ---------------------------------------------------------------------------
   /**
-   * Cuando un asesor o asesor-admin crea una producción para un lote cuyo
+   * Cuando un asesor crea una producción para un lote cuyo
    * dueño (id_usuario) es otro usuario, le llega una notificación con el link
    * a la producción (campaña).
    */
@@ -515,8 +544,7 @@ export class CampaniasService {
     user: any,
   ) {
     const esAsesor = user.roles?.includes(Roles.ASESOR);
-    const esAsesorAdmin = user.roles?.includes(Roles.ASESOR_ADMIN);
-    if (!esAsesor && !esAsesorAdmin) return;
+    if (!esAsesor) return;
 
     if (!lote.idUsuario || lote.idUsuario === user.id) return;
 
@@ -580,9 +608,7 @@ export class CampaniasService {
     user: any,
     accion: string,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -606,9 +632,7 @@ export class CampaniasService {
     accion: string,
     currentEmpresaId?: number,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -630,13 +654,26 @@ export class CampaniasService {
     });
     if (!cultivo)
       throw new BadRequestException("El cultivo indicado no existe");
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+      Number(e),
+    );
+    if (cultivo.uidPropietario != null) {
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      if (
+        !isAdmin &&
+        cultivo.uidPropietario !== user.id &&
+        !(await asesoraAlgunaEmpresa(
+          this.cache,
+          cultivo.uidPropietario,
+          userEmpresas,
+        ))
+      ) {
+        throw new ForbiddenException("El cultivo pertenece a otro asesor");
+      }
+      return;
+    }
     if (cultivo.idEmpresa !== null) {
-      const isAdmin =
-        user.roles?.includes(Roles.SYS_ADMIN) ||
-        user.roles?.includes(Roles.ASESOR_ADMIN);
-      const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
-        Number(e),
-      );
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
       if (!isAdmin && !userEmpresas.includes(cultivo.idEmpresa)) {
         throw new ForbiddenException(
           "No tiene permisos para usar este cultivo",
@@ -660,10 +697,26 @@ export class CampaniasService {
         "La variedad no pertenece al cultivo seleccionado",
       );
     }
+    const userEmpresasV: number[] = (user.idEmpresas || []).map((e: any) =>
+      Number(e),
+    );
+    if (variedad.uidPropietario != null) {
+      const isAdminV = user.roles?.includes(Roles.SYS_ADMIN);
+      if (
+        !isAdminV &&
+        variedad.uidPropietario !== user.id &&
+        !(await asesoraAlgunaEmpresa(
+          this.cache,
+          variedad.uidPropietario,
+          userEmpresasV,
+        ))
+      ) {
+        throw new ForbiddenException("La variedad pertenece a otro asesor");
+      }
+      return;
+    }
     if (variedad.idEmpresa !== null) {
-      const isAdmin =
-        user.roles?.includes(Roles.SYS_ADMIN) ||
-        user.roles?.includes(Roles.ASESOR_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),
       );
@@ -677,8 +730,9 @@ export class CampaniasService {
 
   /**
    * Un ítem de catálogo (labor/insumo/costo) se puede usar en una campaña si:
-   *  - es global (id_empresa IS NULL), o
-   *  - pertenece a la misma empresa que el lote de la campaña.
+   *  - es global (sin empresa ni dueño), o
+   *  - pertenece a la misma empresa que el lote de la campaña, o
+   *  - es del asesor y el dueño lo asesora (propio, o asesora esa empresa).
    */
   private async assertLaborEnScope(
     idLabor: number,
@@ -687,13 +741,24 @@ export class CampaniasService {
   ) {
     const labor = await this.laborRepo.findOne({ where: { id: idLabor } });
     if (!labor) throw new BadRequestException("La labor indicada no existe");
+    if (labor.uidPropietario != null) {
+      if (
+        !(await puedeUsarItemAsesorEn(
+          this.cache,
+          labor.uidPropietario,
+          user,
+          idEmpresaLote,
+        ))
+      ) {
+        throw new ForbiddenException("La labor pertenece a otro asesor");
+      }
+      return;
+    }
     if (labor.idEmpresa !== null && labor.idEmpresa !== idEmpresaLote) {
       throw new ForbiddenException("La labor pertenece a otra empresa");
     }
     if (labor.idEmpresa !== null) {
-      const isAdmin =
-        user.roles?.includes(Roles.SYS_ADMIN) ||
-        user.roles?.includes(Roles.ASESOR_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),
       );
@@ -710,13 +775,24 @@ export class CampaniasService {
   ) {
     const insumo = await this.insumoRepo.findOne({ where: { id: idInsumo } });
     if (!insumo) throw new BadRequestException("El insumo indicado no existe");
+    if (insumo.uidPropietario != null) {
+      if (
+        !(await puedeUsarItemAsesorEn(
+          this.cache,
+          insumo.uidPropietario,
+          user,
+          idEmpresaLote,
+        ))
+      ) {
+        throw new ForbiddenException("El insumo pertenece a otro asesor");
+      }
+      return;
+    }
     if (insumo.idEmpresa !== null && insumo.idEmpresa !== idEmpresaLote) {
       throw new ForbiddenException("El insumo pertenece a otra empresa");
     }
     if (insumo.idEmpresa !== null) {
-      const isAdmin =
-        user.roles?.includes(Roles.SYS_ADMIN) ||
-        user.roles?.includes(Roles.ASESOR_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),
       );
@@ -733,13 +809,24 @@ export class CampaniasService {
   ) {
     const costo = await this.costoRepo.findOne({ where: { id: idCosto } });
     if (!costo) throw new BadRequestException("El costo indicado no existe");
+    if (costo.uidPropietario != null) {
+      if (
+        !(await puedeUsarItemAsesorEn(
+          this.cache,
+          costo.uidPropietario,
+          user,
+          idEmpresaLote,
+        ))
+      ) {
+        throw new ForbiddenException("El costo pertenece a otro asesor");
+      }
+      return;
+    }
     if (costo.idEmpresa !== null && costo.idEmpresa !== idEmpresaLote) {
       throw new ForbiddenException("El costo pertenece a otra empresa");
     }
     if (costo.idEmpresa !== null) {
-      const isAdmin =
-        user.roles?.includes(Roles.SYS_ADMIN) ||
-        user.roles?.includes(Roles.ASESOR_ADMIN);
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),
       );

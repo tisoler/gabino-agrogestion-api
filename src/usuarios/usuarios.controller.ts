@@ -34,7 +34,7 @@ export class UsuariosController {
 
   @Get("candidatos")
   @Permissions("escritura:empresa")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Listar usuarios candidatos para asociar a empresas",
     description:
@@ -49,7 +49,7 @@ export class UsuariosController {
 
   @Patch(":uid/empresas")
   @Permissions("escritura:empresa")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Asociar / desasociar empresas a un usuario",
     description:
@@ -73,7 +73,7 @@ export class UsuariosController {
 
   @Patch(":uid/celular")
   @Permissions("escritura:empresa")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Agregar / editar el celular (WhatsApp) de un usuario",
     description:
@@ -94,7 +94,7 @@ export class UsuariosController {
 
   @Patch(":uid/nombre")
   @Permissions("escritura:empresa")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Agregar / editar el nombre de un usuario",
     description:

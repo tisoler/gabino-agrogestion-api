@@ -42,12 +42,11 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, "firebase") {
       const { idEmpresas, roles, permisos } = authData;
 
       const isAsesor = roles.includes(Roles.ASESOR);
-      const isAdmin =
-        roles.includes(Roles.SYS_ADMIN) || roles.includes(Roles.ASESOR_ADMIN);
+      const isAdmin = roles.includes(Roles.SYS_ADMIN);
 
       // El header x-empresa-id es la "empresa actual" elegida en el FE.
       // Sólo se honra si el usuario la tiene en su idEmpresas (asesor / productor)
-      // o si es admin (sys-admin / asesor-admin, puede pedir cualquier empresa).
+      // o si es admin (sys-admin, puede pedir cualquier empresa).
       const requestedEmpresaId = req.headers["x-empresa-id"];
       let currentEmpresaId: number | null = null;
 

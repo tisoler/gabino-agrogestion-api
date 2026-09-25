@@ -23,6 +23,14 @@ export class Prescripcion {
   fecha: string;
 
   /**
+   * UID de Firebase del asesor dueño de la correlativa (el número visible es
+   * "AA-numero" por asesor y año). NULL = legado anterior al modelo por
+   * asesor (se muestra igual, fuera de la unicidad por asesor).
+   */
+  @Column({ name: "uid_asesor", type: "varchar", length: 128, nullable: true })
+  uidAsesor: string | null;
+
+  /**
    * Secuencial dentro del año de `fecha` (el número visible es "AA-numero",
    * ej. 26-104; arranca en 1 cada año). Admite valores iguales entre años
    * distintos; es único dentro del año (índice uq_prescripcion_anio_numero).

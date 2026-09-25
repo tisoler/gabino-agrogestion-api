@@ -13,6 +13,7 @@ import { Lote } from "../entities/lote.entity";
 import { Cultivo } from "../entities/cultivo.entity";
 import { Empresa } from "../entities/empresa.entity";
 import { FirestoreCacheService } from "../cache/firestore-cache.service";
+import { asesoraAlgunaEmpresa } from "../utils/alcance";
 import { Roles } from "../constantes";
 import { CreateMensajeMasivoDto } from "./dto/create-mensaje-masivo.dto";
 
@@ -54,7 +55,7 @@ export class MensajesMasivosService {
   // Historial
   // ---------------------------------------------------------------------------
   /**
-   * Alcance del historial: sys-admin y asesor-admin ven todos los registros;
+   * Alcance del historial: sys-admin ve todos los registros;
    * el asesor sólo los que lo tienen como emisor.
    */
   findAll(user: any) {
@@ -97,9 +98,7 @@ export class MensajesMasivosService {
   ): Promise<DestinatarioMensaje[]> {
     const campania = this.periodoValido(campaniaRaw);
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -211,10 +210,7 @@ export class MensajesMasivosService {
   // Helpers
   // ---------------------------------------------------------------------------
   private esAdmin(user: any): boolean {
-    return Boolean(
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN),
-    );
+    return Boolean(user.roles?.includes(Roles.SYS_ADMIN));
   }
 
   private periodoValido(campaniaRaw?: string): string {
@@ -230,7 +226,8 @@ export class MensajesMasivosService {
 
   /**
    * El cultivo debe existir y ser visible: los cultivos de empresa sólo los
-   * pueden usar admins o usuarios de esa empresa (igual que en campañas).
+   * pueden usar admins o usuarios de esa empresa (igual que en campañas);
+   * los de asesor, su dueño o quienes asesora.
    */
   private async assertCultivo(idCultivo: number, user: any) {
     const cultivo = await this.cultivoRepo.findOne({
@@ -238,13 +235,26 @@ export class MensajesMasivosService {
     });
     if (!cultivo)
       throw new BadRequestException("El cultivo indicado no existe");
+    const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
+      Number(e),
+    );
+    if (cultivo.uidPropietario != null) {
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
+      if (
+        !isAdmin &&
+        cultivo.uidPropietario !== user.id &&
+        !(await asesoraAlgunaEmpresa(
+          this.cache,
+          cultivo.uidPropietario,
+          userEmpresas,
+        ))
+      ) {
+        throw new ForbiddenException("El cultivo pertenece a otro asesor");
+      }
+      return;
+    }
     if (cultivo.idEmpresa !== null) {
-      const isAdmin =
-        user.roles?.includes(Roles.SYS_ADMIN) ||
-        user.roles?.includes(Roles.ASESOR_ADMIN);
-      const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
-        Number(e),
-      );
+      const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
       if (!isAdmin && !userEmpresas.includes(cultivo.idEmpresa)) {
         throw new ForbiddenException(
           "No tiene permisos para usar este cultivo",

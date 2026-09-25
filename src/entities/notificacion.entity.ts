@@ -8,7 +8,7 @@ import {
 export type TipoNotificacion = "produccion" | "prescripcion";
 
 /**
- * Notificación para un usuario (dueño de lote) cuando un asesor/asesor-admin
+ * Notificación para un usuario (dueño de lote) cuando un asesor
  * genera una producción o prescripción para uno de sus lotes.
  *
  * `idUsuario` es el UID de Firebase del destinatario. El vínculo a la pantalla

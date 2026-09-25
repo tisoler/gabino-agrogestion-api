@@ -53,7 +53,14 @@ export class CultivosController {
     name: "scope",
     required: false,
     type: String,
-    description: "global | empresa (para no-admin)",
+    description:
+      "global (sin dueño) | empresa | asesor (default: según alcance visible)",
+  })
+  @ApiQuery({
+    name: "uidAsesor",
+    required: false,
+    type: String,
+    description: "Con scope=asesor, filtra un asesor puntual (UID)",
   })
   @ApiQuery({
     name: "soloActivos",
@@ -68,6 +75,7 @@ export class CultivosController {
     @Query("currentEmpresaId") currentEmpresaId?: number,
     @Query("soloActivos") soloActivos?: string,
     @Query("scope") scope?: string,
+    @Query("uidAsesor") uidAsesor?: string,
   ) {
     const showAll = all === "true";
     const onlyActive = soloActivos === "true";
@@ -78,6 +86,7 @@ export class CultivosController {
       currentEmpresaId,
       onlyActive,
       scope,
+      uidAsesor,
     );
   }
 

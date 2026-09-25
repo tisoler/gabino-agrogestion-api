@@ -30,4 +30,20 @@ export class CreateCultivoDto {
   @IsOptional()
   @IsNumber()
   idEmpresa?: number;
+
+  @ApiPropertyOptional({
+    description:
+      "Alcance: global (sólo sys-admin), asesor (todos sus productores) o empresa (default)",
+    enum: ["global", "asesor", "empresa"],
+  })
+  @IsOptional()
+  @IsIn(["global", "asesor", "empresa"])
+  alcance?: "global" | "asesor" | "empresa";
+
+  @ApiPropertyOptional({
+    description: "UID del asesor (sólo sys-admin con alcance asesor)",
+  })
+  @IsOptional()
+  @IsString()
+  uidAsesor?: string;
 }

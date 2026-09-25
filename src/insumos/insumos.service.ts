@@ -16,6 +16,13 @@ import {
   normalizeNombre,
   translateUniqueViolation,
 } from "../utils/nombre";
+import {
+  aplicarVisibilidadAlcance,
+  exigirEdicionAlcance,
+  resolverAlcanceCambio,
+  resolverAlcanceCreate,
+} from "../utils/alcance";
+import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 @Injectable()
 export class InsumosService {
@@ -24,27 +31,51 @@ export class InsumosService {
     private insumoRepository: Repository<Insumo>,
     @InjectRepository(CategoriaInsumo)
     private categoriaRepository: Repository<CategoriaInsumo>,
+    private cache: FirestoreCacheService,
   ) {}
 
-  findAll(
+  async findAll(
     user: any,
     all?: boolean,
     companyIds?: string,
     currentEmpresaId?: number,
     soloActivos?: boolean,
     scope?: string,
+    uidAsesor?: string,
   ) {
     const query = this.insumoRepository
       .createQueryBuilder("insumo")
       .leftJoinAndSelect("insumo.categoria", "categoria");
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
-    // Filtros unificados para todos los roles (sys-admin, asesor-admin, asesor, productor):
+    // Filtros unificados para todos los roles (sys-admin, asesor, productor):
     if (scope === "global") {
-      query.andWhere("insumo.id_empresa IS NULL");
+      query
+        .andWhere("insumo.id_empresa IS NULL")
+        .andWhere("insumo.uid_propietario IS NULL");
+    } else if (scope === "asesor") {
+      // Ítems de asesor (con dueño). Opcionalmente de un asesor puntual.
+      query.andWhere("insumo.uid_propietario IS NOT NULL");
+      if (uidAsesor) {
+        query.andWhere("insumo.uid_propietario = :filtroAsesor", {
+          filtroAsesor: uidAsesor,
+        });
+      }
+      if (!isAdmin) {
+        const idsAsesor: number[] = (user.idEmpresas || [])
+          .map((e: any) => Number(e))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        await aplicarVisibilidadAlcance({
+          qb: query,
+          alias: "insumo",
+          user,
+          ids: idsAsesor,
+          currentEmpresaId,
+          cache: this.cache,
+          soloConDuenio: true,
+        });
+      }
     } else if (scope === "empresa") {
       if (currentEmpresaId) {
         query.andWhere("insumo.id_empresa = :companyId", {
@@ -58,14 +89,14 @@ export class InsumosService {
         const ids: number[] = (user.idEmpresas || [])
           .map((e: any) => Number(e))
           .filter((n) => Number.isFinite(n) && n > 0);
-        if (ids.length === 0) {
-          query.andWhere("insumo.id_empresa IS NULL");
-        } else {
-          query.andWhere(
-            "(insumo.id_empresa IS NULL OR insumo.id_empresa IN (:...ids))",
-            { ids },
-          );
-        }
+        await aplicarVisibilidadAlcance({
+          qb: query,
+          alias: "insumo",
+          user,
+          ids,
+          currentEmpresaId,
+          cache: this.cache,
+        });
       }
     }
 
@@ -100,32 +131,33 @@ export class InsumosService {
     user: any,
     currentEmpresaId?: number,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
-
-    let idEmpresa: number | null;
-    if (isAdmin) {
-      idEmpresa = createInsumoDto.idEmpresa ?? null;
-    } else {
-      if (!currentEmpresaId) {
-        throw new BadRequestException(
-          "El usuario no tiene una empresa actual seleccionada",
-        );
-      }
-      idEmpresa = createInsumoDto.idEmpresa ?? currentEmpresaId;
-    }
+    const { alcance, uidAsesor, ...resto } = createInsumoDto;
+    const scope = await resolverAlcanceCreate({
+      alcance,
+      uidAsesor,
+      idEmpresa: createInsumoDto.idEmpresa,
+      currentEmpresaId,
+      user,
+      cache: this.cache,
+    });
 
     await this.assertCategoriaExiste(createInsumoDto.idCategoria);
 
     const nombre = normalizeNombre(createInsumoDto.nombre);
-    await assertNombreUnico(this.insumoRepository, nombre, idEmpresa);
+    await assertNombreUnico(
+      this.insumoRepository,
+      nombre,
+      scope.idEmpresa,
+      undefined,
+      scope.uidPropietario,
+    );
 
     try {
       const insumo = this.insumoRepository.create({
-        ...createInsumoDto,
+        ...resto,
         nombre,
-        idEmpresa,
+        uidPropietario: scope.uidPropietario,
+        idEmpresa: scope.idEmpresa,
       });
       return await this.insumoRepository.save(insumo);
     } catch (e) {
@@ -139,30 +171,46 @@ export class InsumosService {
       throw new NotFoundException("Insumo no encontrado");
     }
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
 
-    if (!isAdmin) {
-      if (insumo.idEmpresa === null) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar un insumo global",
-        );
-      }
-      if (!userEmpresas.includes(insumo.idEmpresa)) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar un insumo de otra empresa",
-        );
-      }
-    }
+    exigirEdicionAlcance(insumo, user, userEmpresas, "insumo");
 
-    if (
+    // Cambio de alcance (explícito) o movimiento legacy entre empresas.
+    if (updateInsumoDto.alcance !== undefined) {
+      const cambio = await resolverAlcanceCambio({
+        alcance: updateInsumoDto.alcance,
+        uidAsesor: updateInsumoDto.uidAsesor,
+        idEmpresa: updateInsumoDto.idEmpresa,
+        actual: {
+          uidPropietario: insumo.uidPropietario,
+          idEmpresa: insumo.idEmpresa,
+        },
+        user,
+        cache: this.cache,
+      });
+      if (cambio) {
+        await assertNombreUnico(
+          this.insumoRepository,
+          normalizeNombre(updateInsumoDto.nombre ?? insumo.nombre),
+          cambio.idEmpresa,
+          id,
+          cambio.uidPropietario,
+        );
+        insumo.uidPropietario = cambio.uidPropietario;
+        insumo.idEmpresa = cambio.idEmpresa;
+      }
+    } else if (
       updateInsumoDto.idEmpresa !== undefined &&
       updateInsumoDto.idEmpresa !== insumo.idEmpresa
     ) {
+      if (insumo.uidPropietario != null) {
+        throw new ForbiddenException(
+          "Para cambiar el alcance de este insumo indique alcance",
+        );
+      }
       const nuevaEmpresa = updateInsumoDto.idEmpresa;
       if (!isAdmin) {
         if (nuevaEmpresa === null || !userEmpresas.includes(nuevaEmpresa)) {
@@ -176,6 +224,7 @@ export class InsumosService {
         normalizeNombre(updateInsumoDto.nombre ?? insumo.nombre),
         nuevaEmpresa,
         id,
+        null,
       );
       insumo.idEmpresa = nuevaEmpresa;
     }
@@ -188,6 +237,7 @@ export class InsumosService {
           nuevoNombre,
           insumo.idEmpresa,
           id,
+          insumo.uidPropietario,
         );
         insumo.nombre = nuevoNombre;
       }

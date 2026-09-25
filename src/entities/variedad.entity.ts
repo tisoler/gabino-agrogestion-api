@@ -23,6 +23,18 @@ export class Variedad {
   @Column({ name: "id_empresa", nullable: true })
   idEmpresa: number;
 
+  /**
+   * UID de Firebase del asesor dueño. Se hereda del cultivo padre al crear
+   * (la variedad siempre comparte el alcance de su cultivo).
+   */
+  @Column({
+    name: "uid_propietario",
+    type: "varchar",
+    length: 128,
+    nullable: true,
+  })
+  uidPropietario: string | null;
+
   @ManyToOne(() => Cultivo, (cultivo) => cultivo.variedades)
   @JoinColumn({ name: "id_cultivo" })
   cultivo: Cultivo;

@@ -46,7 +46,7 @@ export class EmpresasController {
 
   @Get("with-users")
   @Permissions("lectura:productor")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Listar empresas con sus usuarios (asesores y productores)",
     description:
@@ -73,7 +73,7 @@ export class EmpresasController {
 
   @Post()
   @Permissions("escritura:empresa")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({ summary: "Crear una nueva empresa" })
   create(@Body() createEmpresaDto: CreateEmpresaDto, @Request() req) {
     return this.empresasService.create(createEmpresaDto, req.user);
@@ -81,12 +81,12 @@ export class EmpresasController {
 
   @Patch(":id")
   @Permissions("escritura:empresa")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Actualizar el nombre de una empresa",
     description:
       "El nombre se normaliza a mayúscula inicial por palabra (excepto la palabra 'y'). " +
-      "sys-admin / asesor-admin pueden editar cualquier empresa; el asesor sólo sus idEmpresas.",
+      "sys-admin puede editar cualquier empresa; el asesor sólo sus idEmpresas.",
   })
   @ApiParam({ name: "id", type: Number, description: "ID de la empresa" })
   update(

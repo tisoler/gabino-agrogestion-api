@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-  BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -15,31 +14,62 @@ import {
   normalizeNombre,
   translateUniqueViolation,
 } from "../utils/nombre";
+import {
+  aplicarVisibilidadAlcance,
+  exigirEdicionAlcance,
+  resolverAlcanceCambio,
+  resolverAlcanceCreate,
+} from "../utils/alcance";
+import { FirestoreCacheService } from "../cache/firestore-cache.service";
 
 @Injectable()
 export class LaboresService {
   constructor(
     @InjectRepository(Labor)
     private laborRepository: Repository<Labor>,
+    private cache: FirestoreCacheService,
   ) {}
 
-  findAll(
+  async findAll(
     user: any,
     all?: boolean,
     companyIds?: string,
     currentEmpresaId?: number,
     soloActivos?: boolean,
     scope?: string,
+    uidAsesor?: string,
   ) {
     const query = this.laborRepository.createQueryBuilder("labor");
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
 
-    // Filtros unificados para todos los roles (sys-admin, asesor-admin, asesor, productor):
+    // Filtros unificados para todos los roles (sys-admin, asesor, productor):
     if (scope === "global") {
-      query.andWhere("labor.id_empresa IS NULL");
+      query
+        .andWhere("labor.id_empresa IS NULL")
+        .andWhere("labor.uid_propietario IS NULL");
+    } else if (scope === "asesor") {
+      // Ítems de asesor (con dueño). Opcionalmente de un asesor puntual.
+      query.andWhere("labor.uid_propietario IS NOT NULL");
+      if (uidAsesor) {
+        query.andWhere("labor.uid_propietario = :filtroAsesor", {
+          filtroAsesor: uidAsesor,
+        });
+      }
+      if (!isAdmin) {
+        const idsAsesor: number[] = (user.idEmpresas || [])
+          .map((e: any) => Number(e))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        await aplicarVisibilidadAlcance({
+          qb: query,
+          alias: "labor",
+          user,
+          ids: idsAsesor,
+          currentEmpresaId,
+          cache: this.cache,
+          soloConDuenio: true,
+        });
+      }
     } else if (scope === "empresa") {
       if (currentEmpresaId) {
         query.andWhere("labor.id_empresa = :companyId", {
@@ -53,14 +83,14 @@ export class LaboresService {
         const ids: number[] = (user.idEmpresas || [])
           .map((e: any) => Number(e))
           .filter((n) => Number.isFinite(n) && n > 0);
-        if (ids.length === 0) {
-          query.andWhere("labor.id_empresa IS NULL");
-        } else {
-          query.andWhere(
-            "(labor.id_empresa IS NULL OR labor.id_empresa IN (:...ids))",
-            { ids },
-          );
-        }
+        await aplicarVisibilidadAlcance({
+          qb: query,
+          alias: "labor",
+          user,
+          ids,
+          currentEmpresaId,
+          cache: this.cache,
+        });
       }
     }
 
@@ -80,30 +110,31 @@ export class LaboresService {
     user: any,
     currentEmpresaId?: number,
   ) {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
-
-    let idEmpresa: number | null;
-    if (isAdmin) {
-      idEmpresa = createLaborDto.idEmpresa ?? null;
-    } else {
-      if (!currentEmpresaId) {
-        throw new BadRequestException(
-          "El usuario no tiene una empresa actual seleccionada",
-        );
-      }
-      idEmpresa = createLaborDto.idEmpresa ?? currentEmpresaId;
-    }
+    const { alcance, uidAsesor, ...resto } = createLaborDto;
+    const scope = await resolverAlcanceCreate({
+      alcance,
+      uidAsesor,
+      idEmpresa: createLaborDto.idEmpresa,
+      currentEmpresaId,
+      user,
+      cache: this.cache,
+    });
 
     const nombre = normalizeNombre(createLaborDto.nombre);
-    await assertNombreUnico(this.laborRepository, nombre, idEmpresa);
+    await assertNombreUnico(
+      this.laborRepository,
+      nombre,
+      scope.idEmpresa,
+      undefined,
+      scope.uidPropietario,
+    );
 
     try {
       const labor = this.laborRepository.create({
-        ...createLaborDto,
+        ...resto,
         nombre,
-        idEmpresa,
+        uidPropietario: scope.uidPropietario,
+        idEmpresa: scope.idEmpresa,
       });
       return await this.laborRepository.save(labor);
     } catch (e) {
@@ -117,30 +148,46 @@ export class LaboresService {
       throw new NotFoundException("Labor no encontrada");
     }
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
 
-    if (!isAdmin) {
-      if (labor.idEmpresa === null) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar una labor global",
-        );
-      }
-      if (!userEmpresas.includes(labor.idEmpresa)) {
-        throw new ForbiddenException(
-          "No tiene permisos para editar una labor de otra empresa",
-        );
-      }
-    }
+    exigirEdicionAlcance(labor, user, userEmpresas, "labor");
 
-    if (
+    // Cambio de alcance (explícito) o movimiento legacy entre empresas.
+    if (updateLaborDto.alcance !== undefined) {
+      const cambio = await resolverAlcanceCambio({
+        alcance: updateLaborDto.alcance,
+        uidAsesor: updateLaborDto.uidAsesor,
+        idEmpresa: updateLaborDto.idEmpresa,
+        actual: {
+          uidPropietario: labor.uidPropietario,
+          idEmpresa: labor.idEmpresa,
+        },
+        user,
+        cache: this.cache,
+      });
+      if (cambio) {
+        await assertNombreUnico(
+          this.laborRepository,
+          normalizeNombre(updateLaborDto.nombre ?? labor.nombre),
+          cambio.idEmpresa,
+          id,
+          cambio.uidPropietario,
+        );
+        labor.uidPropietario = cambio.uidPropietario;
+        labor.idEmpresa = cambio.idEmpresa;
+      }
+    } else if (
       updateLaborDto.idEmpresa !== undefined &&
       updateLaborDto.idEmpresa !== labor.idEmpresa
     ) {
+      if (labor.uidPropietario != null) {
+        throw new ForbiddenException(
+          "Para cambiar el alcance de esta labor indique alcance",
+        );
+      }
       const nuevaEmpresa = updateLaborDto.idEmpresa;
       if (!isAdmin) {
         if (nuevaEmpresa === null || !userEmpresas.includes(nuevaEmpresa)) {
@@ -154,6 +201,7 @@ export class LaboresService {
         normalizeNombre(updateLaborDto.nombre ?? labor.nombre),
         nuevaEmpresa,
         id,
+        null,
       );
       labor.idEmpresa = nuevaEmpresa;
     }
@@ -166,6 +214,7 @@ export class LaboresService {
           nuevoNombre,
           labor.idEmpresa,
           id,
+          labor.uidPropietario,
         );
         labor.nombre = nuevoNombre;
       }

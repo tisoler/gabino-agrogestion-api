@@ -103,9 +103,7 @@ const num = (v: number | string | null | undefined): number => {
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
-const esAdmin = (user: any): boolean =>
-  user.roles?.includes(Roles.SYS_ADMIN) ||
-  user.roles?.includes(Roles.ASESOR_ADMIN);
+const esAdmin = (user: any): boolean => user.roles?.includes(Roles.SYS_ADMIN);
 
 const empresasDelUsuario = (user: any): number[] =>
   (user.idEmpresas || []).map((e: any) => Number(e));

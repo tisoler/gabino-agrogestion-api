@@ -28,6 +28,18 @@ export class Costo {
   @JoinColumn({ name: "id_empresa" })
   empresa: Empresa;
 
+  /**
+   * UID de Firebase del asesor dueño (alcance "todos sus productores").
+   * NULL + id_empresa NULL = global; NULL + id_empresa = de esa empresa.
+   */
+  @Column({
+    name: "uid_propietario",
+    type: "varchar",
+    length: 128,
+    nullable: true,
+  })
+  uidPropietario: string | null;
+
   @Column({
     name: "precio_unitario",
     nullable: true,

@@ -37,9 +37,7 @@ export class EmpresasService {
   ) {}
 
   findAll(user: any): Promise<Empresa[]> {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );
@@ -70,9 +68,7 @@ export class EmpresasService {
     createEmpresaDto: CreateEmpresaDto,
     user: any,
   ): Promise<Empresa> {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const isAsesor = user.roles?.includes(Roles.ASESOR);
     if (!isAdmin && !isAsesor) {
       throw new BadRequestException("No tiene permisos para crear empresas");
@@ -85,7 +81,7 @@ export class EmpresasService {
 
     // Al crear una empresa, el asesor queda asociado automáticamente a ella:
     // se agrega el id a su `idEmpresas` en Firestore para que pueda verla y
-    // gestionarla. Los admins (sys-admin / asesor-admin) ya ven todas.
+    // gestionarla. El sys-admin ya ve todas.
     if (!isAdmin && isAsesor && user.id) {
       try {
         const db = admin.firestore();
@@ -117,7 +113,7 @@ export class EmpresasService {
    * mayúscula inicial por palabra (salvo la palabra "y").
    *
    * Reglas:
-   *  - sys-admin / asesor-admin: pueden editar cualquier empresa.
+   *  - sys-admin: puede editar cualquier empresa.
    *  - asesor: sólo empresas de su propio `idEmpresas`.
    *  - productor: no autorizado (lo bloquea el controller con @Roles).
    */
@@ -131,9 +127,7 @@ export class EmpresasService {
       throw new NotFoundException("Empresa no encontrada");
     }
 
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     if (!isAdmin) {
       const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
         Number(e),
@@ -150,9 +144,7 @@ export class EmpresasService {
   }
 
   async findAllWithUsers(user: any): Promise<EmpresaConUsuarios[]> {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const isAsesor = user.roles?.includes(Roles.ASESOR);
 
     if (!isAdmin && !isAsesor) {
@@ -194,9 +186,7 @@ export class EmpresasService {
     empresaId: number,
     user: any,
   ): Promise<UsuarioBasico[]> {
-    const isAdmin =
-      user.roles?.includes(Roles.SYS_ADMIN) ||
-      user.roles?.includes(Roles.ASESOR_ADMIN);
+    const isAdmin = user.roles?.includes(Roles.SYS_ADMIN);
     const userEmpresas: number[] = (user.idEmpresas || []).map((e: any) =>
       Number(e),
     );

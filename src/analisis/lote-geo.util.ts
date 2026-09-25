@@ -16,9 +16,7 @@ export interface Bbox {
  * admins sin restricción; el resto sólo sobre lotes de sus empresas.
  */
 export function validarAccesoLote(lote: Lote, user: any): void {
-  const isAdmin =
-    user?.roles?.includes(Roles.SYS_ADMIN) ||
-    user?.roles?.includes(Roles.ASESOR_ADMIN);
+  const isAdmin = user?.roles?.includes(Roles.SYS_ADMIN);
   const userEmpresas: number[] = (user?.idEmpresas || []).map((e: any) =>
     Number(e),
   );

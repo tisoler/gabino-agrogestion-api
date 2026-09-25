@@ -67,7 +67,14 @@ export class InsumosController {
     name: "scope",
     required: false,
     type: String,
-    description: "global | empresa (para no-admin)",
+    description:
+      "global (sin dueño) | empresa | asesor (default: según alcance visible)",
+  })
+  @ApiQuery({
+    name: "uidAsesor",
+    required: false,
+    type: String,
+    description: "Con scope=asesor, filtra un asesor puntual (UID)",
   })
   findAll(
     @Request() req,
@@ -76,6 +83,7 @@ export class InsumosController {
     @Query("currentEmpresaId") currentEmpresaId?: number,
     @Query("soloActivos") soloActivos?: string,
     @Query("scope") scope?: string,
+    @Query("uidAsesor") uidAsesor?: string,
   ) {
     const showAll = all === "true";
     const onlyActive = soloActivos === "true";
@@ -86,6 +94,7 @@ export class InsumosController {
       currentEmpresaId,
       onlyActive,
       scope,
+      uidAsesor,
     );
   }
 

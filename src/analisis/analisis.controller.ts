@@ -34,7 +34,7 @@ export class AnalisisController {
 
   @Get("lote/:idLote/clima")
   @Permissions("lectura:analisis-clima")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary: "Clima histórico/actual de un lote (NASA POWER)",
     description:
@@ -59,7 +59,7 @@ export class AnalisisController {
 
   @Get("lote/:idLote/ndvi")
   @Permissions("lectura:analisis-clima")
-  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR, RolesConst.ASESOR_ADMIN)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
   @ApiOperation({
     summary:
       "NDVI (vigor de vegetación) de un lote — Sentinel-2 con fallback GIBS",

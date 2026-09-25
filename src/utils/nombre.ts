@@ -14,21 +14,30 @@ export function normalizeNombre(s: string): string {
 /**
  * Verifica que no exista otro item con el mismo nombre en el scope solicitado.
  *
- * Reglas de unicidad (case-insensitive, sólo ítems activos):
- *  - `idEmpresa = null`  → creando un global: bloquea si ya existe OTRO global
- *    con ese nombre. Empresas NO bloquean al global.
- *  - `idEmpresa = N`     → creando en la empresa N: bloquea si existe un
- *    global con ese nombre o un item de la misma empresa N. Otras empresas
- *    NO bloquean.
+ * Reglas de unicidad (case-insensitive, sólo ítems activos). El scope es el
+ * par (uidPropietario, idEmpresa): global (null,null), asesor (uid,null) o
+ * empresa (null,N):
+ *  - global      → bloquea si ya existe OTRO global con ese nombre.
+ *  - asesor (U)  → bloquea si existe un global o un item del mismo asesor U.
+ *  - empresa (N) → bloquea si existe un global o un item de la misma
+ *    empresa N (comportamiento histórico).
+ * Los scopes cruzados asesor↔empresa no se bloquean entre sí (se distinguen
+ * en la UI por badge de alcance).
  *  - `excludeId` permite excluir el item actual (para updates).
  */
 export async function assertNombreUnico<
-  T extends { id: number; idEmpresa: number | null; nombre: string },
+  T extends {
+    id: number;
+    idEmpresa: number | null;
+    uidPropietario: string | null;
+    nombre: string;
+  },
 >(
   repo: Repository<T>,
   nombre: string,
   idEmpresa: number | null,
   excludeId?: number,
+  uidPropietario: string | null = null,
 ): Promise<void> {
   const lower = nombre.trim().toLowerCase();
   if (!lower) return;
@@ -38,14 +47,21 @@ export async function assertNombreUnico<
     .where("LOWER(x.nombre) = :lower", { lower })
     .andWhere("x.activo = true");
 
-  if (idEmpresa === null) {
-    // Globales: solo choca con otro global
-    qb.andWhere("x.id_empresa IS NULL");
+  if (idEmpresa === null && uidPropietario === null) {
+    // Global: solo choca con otro global
+    qb.andWhere("x.id_empresa IS NULL").andWhere("x.uid_propietario IS NULL");
+  } else if (idEmpresa === null) {
+    // Asesor: choca con global o con el mismo asesor
+    qb.andWhere(
+      "((x.id_empresa IS NULL AND x.uid_propietario IS NULL) OR (x.id_empresa IS NULL AND x.uid_propietario = :uid))",
+      { uid: uidPropietario },
+    );
   } else {
-    // Empresa: choca con global o con la misma empresa
-    qb.andWhere("(x.id_empresa IS NULL OR x.id_empresa = :idEmpresa)", {
-      idEmpresa,
-    });
+    // Empresa: choca con global o con la misma empresa (histórico)
+    qb.andWhere(
+      "((x.id_empresa IS NULL AND x.uid_propietario IS NULL) OR (x.id_empresa = :idEmpresa AND x.uid_propietario IS NULL))",
+      { idEmpresa },
+    );
   }
 
   if (excludeId !== undefined) {
@@ -54,7 +70,12 @@ export async function assertNombreUnico<
 
   const conflict = await qb.getOne();
   if (conflict) {
-    const scope = idEmpresa === null ? "global" : "global o en esta empresa";
+    const scope =
+      idEmpresa === null && uidPropietario === null
+        ? "global"
+        : idEmpresa === null
+          ? "global o de este asesor"
+          : "global o en esta empresa";
     throw new BadRequestException(
       `Ya existe un ítem con el nombre "${nombre}" (${scope}).`,
     );

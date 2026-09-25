@@ -27,6 +27,21 @@ export class Campania {
   @Column({ type: "varchar", length: 7 })
   campania: string;
 
+  /**
+   * Número visible de producción con forma E-AA-N (ej. 5-26-7): ámbito
+   * productor (`numEmpresa`, snapshot del lote al crear), año de creación en
+   * 2 dígitos y secuencial por (empresa, año). Inmutable (no cambia si se
+   * mueve de lote).
+   */
+  @Column({ name: "num_empresa" })
+  numEmpresa: number;
+
+  @Column({ name: "num_anio" })
+  numAnio: number;
+
+  @Column({ name: "num_seq" })
+  numSeq: number;
+
   @Column({ name: "id_lote" })
   idLote: number;
 
