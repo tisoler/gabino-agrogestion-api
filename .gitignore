@@ -43,3 +43,5 @@ lerna-debug.log*
 firebase-service-account.json
 
 docker-compose.yml
+# Temporales de OCR (análisis de suelo, sólo dev en macOS)
+.tmp-ocr/

@@ -19,6 +19,8 @@ import { ReportesModule } from "./reportes/reportes.module";
 import { MensajesMasivosModule } from "./mensajes-masivos/mensajes-masivos.module";
 import { CacheModule } from "./cache/cache.module";
 import { AnalisisModule } from "./analisis/analisis.module";
+import { AnalisisSueloModule } from "./analisis-suelo/analisis-suelo.module";
+import { MonitoreosModule } from "./monitoreos/monitoreos.module";
 import { FacturacionModule } from "./facturacion/facturacion.module";
 
 import { Empresa } from "./entities/empresa.entity";
@@ -41,6 +43,9 @@ import { Notificacion } from "./entities/notificacion.entity";
 import { Reporte } from "./entities/reporte.entity";
 import { ReporteFila } from "./entities/reporte-fila.entity";
 import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
+import { AnalisisSuelo } from "./entities/analisis-suelo.entity";
+import { AnalisisSueloDetalle } from "./entities/analisis-suelo-detalle.entity";
+import { MonitoreoLote } from "./entities/monitoreo-lote.entity";
 import { FacturacionConfig } from "./entities/facturacion-config.entity";
 import { PrecioPizarra } from "./entities/precio-pizarra.entity";
 import { ProduccionPago } from "./entities/produccion-pago.entity";
@@ -80,6 +85,9 @@ import { ProduccionPago } from "./entities/produccion-pago.entity";
           Reporte,
           ReporteFila,
           MensajeMasivo,
+          AnalisisSuelo,
+          AnalisisSueloDetalle,
+          MonitoreoLote,
           FacturacionConfig,
           PrecioPizarra,
           ProduccionPago,
@@ -107,6 +115,8 @@ import { ProduccionPago } from "./entities/produccion-pago.entity";
     MensajesMasivosModule,
     CacheModule,
     AnalisisModule,
+    AnalisisSueloModule,
+    MonitoreosModule,
     FacturacionModule,
   ],
 })

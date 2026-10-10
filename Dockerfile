@@ -24,6 +24,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Binarios para el OCR de análisis de suelo (pdftoppm + tesseract español)
+RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-spa
+
 # Instalar pnpm
 RUN npm install -g pnpm
 
