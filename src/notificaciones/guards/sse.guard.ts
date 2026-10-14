@@ -40,7 +40,11 @@ export class FirebaseSseGuard implements CanActivate {
       req.user = {
         id: uid,
         firebaseUid: uid,
-        nombreUsuario: decodedUser.email,
+        nombreUsuario:
+          authData.nombreUsuario ??
+          decodedUser.name ??
+          decodedUser.email ??
+          uid,
         email: decodedUser.email,
         idEmpresas: authData.idEmpresas,
         roles: authData.roles,

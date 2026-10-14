@@ -12,6 +12,8 @@ export interface CachedAuthUser {
   idEmpresas: number[];
   roles: string[];
   permisos: string[];
+  /** Nombre del doc de Firestore (`nombre`); null si no está cargado. */
+  nombreUsuario: string | null;
 }
 
 interface Entry<T> {
@@ -113,7 +115,18 @@ export class FirestoreCacheService {
           .filter((n: number) => Number.isFinite(n) && n > 0)
       : [];
 
-    const data: CachedAuthUser = { idEmpresas, roles, permisos };
+    const data: CachedAuthUser = {
+      idEmpresas,
+      roles,
+      permisos,
+      nombreUsuario:
+        typeof userData?.nombre === "string" && userData.nombre.trim()
+          ? userData.nombre.trim()
+          : typeof userData?.nombreUsuario === "string" &&
+              userData.nombreUsuario.trim()
+            ? userData.nombreUsuario.trim()
+            : null,
+    };
     this.setAuth(uid, data);
     return data;
   }

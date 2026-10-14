@@ -61,7 +61,8 @@ export class CreateLoteDto {
   area?: number;
 
   @ApiPropertyOptional({
-    description: "ID de la empresa destino (solo sys-admin)",
+    description:
+      "ID de la empresa destino (sys-admin: cualquiera; asesor: una de su idEmpresas)",
   })
   @IsOptional()
   @Type(() => Number)

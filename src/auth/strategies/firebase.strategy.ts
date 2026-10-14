@@ -39,7 +39,7 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, "firebase") {
         );
       }
 
-      const { idEmpresas, roles, permisos } = authData;
+      const { idEmpresas, roles, permisos, nombreUsuario } = authData;
 
       const isAsesor = roles.includes(Roles.ASESOR);
       const isAdmin = roles.includes(Roles.SYS_ADMIN);
@@ -73,7 +73,9 @@ export class FirebaseStrategy extends PassportStrategy(Strategy, "firebase") {
       return {
         id: uid,
         firebaseUid: uid,
-        nombreUsuario: decodedUser.email,
+        // Nombre real (Firestore `nombre`), con fallbacks al display/email del token.
+        nombreUsuario:
+          nombreUsuario ?? decodedUser.name ?? decodedUser.email ?? uid,
         email: decodedUser.email,
         idEmpresas,
         currentEmpresaId,
