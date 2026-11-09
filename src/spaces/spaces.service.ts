@@ -9,6 +9,7 @@ import {
 import { randomBytes } from "crypto";
 
 const PREFIXO_PRESCRIPCIONES = "prescripciones/";
+const PREFIXO_MONITOREOS = "monitoreos/";
 
 @Injectable()
 export class SpacesService {
@@ -62,6 +63,55 @@ export class SpacesService {
    */
   generarKeyPdf(): string {
     return `${PREFIXO_PRESCRIPCIONES}${randomBytes(20).toString("hex")}.pdf`;
+  }
+
+  /**
+   * Genera una key para un audio de monitoreo (igual esquema anti-adivinación
+   * que los PDFs). `extension` sin punto (ej: "m4a").
+   */
+  generarKeyAudio(extension = "m4a"): string {
+    const ext = extension.replace(/[^a-z0-9]/gi, "") || "m4a";
+    return `${PREFIXO_MONITOREOS}${randomBytes(20).toString("hex")}.${ext}`;
+  }
+
+  /**
+   * Sube un audio al Space con ACL público y devuelve la URL pública.
+   */
+  async subirAudio(
+    key: string,
+    buffer: Buffer,
+    contentType = "audio/m4a",
+  ): Promise<string> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: `${this.pathPrefix}${key}`,
+        Body: buffer,
+        ContentType: contentType,
+        ACL: "public-read",
+      }),
+    );
+    return this.construirUrl(key);
+  }
+
+  /**
+   * Elimina un objeto a partir de su URL pública (la que guardamos en BD).
+   * No falla si la URL no pertenece al bucket configurado.
+   */
+  async eliminarPorUrl(url: string): Promise<boolean> {
+    let key: string | null = null;
+    try {
+      const u = new URL(url);
+      const base = new URL(this.publicBaseUrl);
+      if (u.host !== base.host) return false;
+      key = u.pathname.replace(/^\//, "");
+    } catch {
+      return false;
+    }
+    if (!key) return false;
+    // La URL pública incluye el pathPrefix; la key del objeto lo incluye.
+    await this.eliminarPdfs([key]);
+    return true;
   }
 
   /**

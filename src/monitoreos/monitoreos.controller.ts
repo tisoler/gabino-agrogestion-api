@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,14 +10,19 @@ import {
   Post,
   Query,
   Request,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { memoryStorage } from "multer";
 import { MonitoreosService } from "./monitoreos.service";
 import { CreateMonitoreoDto } from "./dto/create-monitoreo.dto";
 import { UpdateMonitoreoDto } from "./dto/update-monitoreo.dto";
@@ -78,6 +84,11 @@ export class MonitoreosController {
     description: "IDs de lotes separados por coma",
   })
   @ApiQuery({ name: "idCampania", required: false, type: Number })
+  @ApiQuery({
+    name: "estado",
+    required: false,
+    description: "Filtrar por estado de revisión (borrador|confirmado)",
+  })
   findAll(
     @Request() req,
     @Query("currentEmpresaId") currentEmpresaId?: string,
@@ -88,6 +99,7 @@ export class MonitoreosController {
     @Query("idVariedad") idVariedad?: string,
     @Query("idLote") idLote?: string,
     @Query("idCampania") idCampania?: string,
+    @Query("estado") estado?: string,
   ) {
     const parseIds = (s?: string): number[] | undefined =>
       s
@@ -115,7 +127,100 @@ export class MonitoreosController {
       idVariedad: parseIds(idVariedad),
       idLote: parseIds(idLote),
       idCampania: idCampania ? Number(idCampania) : undefined,
+      estado:
+        estado === "borrador" || estado === "confirmado" ? estado : undefined,
     });
+  }
+
+  @Post("monitoreos/transcribir")
+  @UseGuards(RolesGuard)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
+  @Permissions("escritura:monitoreo-lote")
+  @UseInterceptors(
+    FileInterceptor("audio", {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (/^audio\//.test(file.mimetype) || /\.(m4a|mp3|wav|ogg|webm|mp4)$/i.test(file.originalname)) {
+          cb(null, true);
+        } else {
+          cb(new Error("El archivo debe ser un audio."), false);
+        }
+      },
+    }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary:
+      "Transcribir un audio suelto (diagnóstico/observaciones con lote ya elegido). No guarda nada.",
+  })
+  async transcribir(@UploadedFile() audio: Express.Multer.File) {
+    if (!audio)
+      throw new BadRequestException("Falta el archivo de audio (campo 'audio').");
+    return this.service.transcribirAudio(
+      audio.buffer,
+      audio.originalname,
+      audio.mimetype,
+    );
+  }
+
+  @Get("monitoreos/cobertura")
+  @Permissions("lectura:monitoreo-lote")
+  @ApiOperation({
+    summary:
+      "Último monitoreo por lote del período (sin monitoreo primero, luego asc)",
+  })
+  @ApiQuery({
+    name: "periodo",
+    required: false,
+    description: 'Período (ej: "26/27"). Default: campaña actual.',
+  })
+  cobertura(@Request() req, @Query("periodo") periodo?: string) {
+    return this.service.cobertura(req.user, periodo);
+  }
+
+  @Post("monitoreos/desde-audio")
+  @UseGuards(RolesGuard)
+  @Roles(RolesConst.SYS_ADMIN, RolesConst.ASESOR)
+  @Permissions("escritura:monitoreo-lote")
+  @UseInterceptors(
+    FileInterceptor("audio", {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (
+          /^audio\//.test(file.mimetype) ||
+          /\.(m4a|mp3|wav|ogg|webm|mp4)$/i.test(file.originalname)
+        ) {
+          cb(null, true);
+        } else {
+          cb(new Error("El archivo debe ser un audio."), false);
+        }
+      },
+    }),
+  )
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary:
+      "Transcribir audio libre (productor+lote+observación) y crear borrador en campaña actual",
+  })
+  desdeAudio(
+    @UploadedFile() audio: Express.Multer.File,
+    @Request() req,
+    @Body("fecha") fecha?: string,
+    @Body("hora") hora?: string,
+  ) {
+    if (!audio)
+      throw new BadRequestException(
+        "Falta el archivo de audio (campo 'audio').",
+      );
+    return this.service.crearDesdeAudio(
+      req.user,
+      audio.buffer,
+      audio.originalname,
+      audio.mimetype,
+      { fecha, hora },
+    );
   }
 
   @Get("monitoreos/:id")

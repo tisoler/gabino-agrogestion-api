@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsDateString,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
@@ -8,6 +9,13 @@ import {
 } from "class-validator";
 
 export class UpdateMonitoreoDto {
+  @ApiPropertyOptional({
+    description:
+      "ID de la producción (para resolver un borrador de audio sin lote)",
+  })
+  @IsOptional()
+  @IsInt()
+  idCampania?: number;
   @ApiPropertyOptional({ description: "Fecha de la observación (YYYY-MM-DD)" })
   @IsOptional()
   @IsDateString()
@@ -32,4 +40,15 @@ export class UpdateMonitoreoDto {
   @IsString()
   @MaxLength(5000)
   observaciones?: string | null;
+
+  @ApiPropertyOptional({
+    description: "Estado de revisión ('borrador' | 'confirmado')",
+    enum: ["borrador", "confirmado"],
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(borrador|confirmado)$/, {
+    message: "estado debe ser 'borrador' o 'confirmado'",
+  })
+  estado?: string;
 }

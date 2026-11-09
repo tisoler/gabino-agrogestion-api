@@ -10,9 +10,14 @@ import {
 } from "class-validator";
 
 export class CreateMonitoreoDto {
-  @ApiProperty({ description: "ID de la producción (campaña) monitoreada" })
+  @ApiProperty({
+    description:
+      "ID de la producción (campaña) monitoreada. Puede omitirse solo para borrador de audio sin lote resuelto.",
+    required: false,
+  })
+  @IsOptional()
   @IsInt()
-  idCampania: number;
+  idCampania?: number;
 
   @ApiProperty({ description: "Fecha de la observación (YYYY-MM-DD)" })
   @IsDateString()
@@ -39,4 +44,27 @@ export class CreateMonitoreoDto {
   @IsString()
   @MaxLength(5000)
   observaciones?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      "Estado inicial (default 'confirmado'; 'borrador' para flujo de voz)",
+    enum: ["borrador", "confirmado"],
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(borrador|confirmado)$/, {
+    message: "estado debe ser 'borrador' o 'confirmado'",
+  })
+  estado?: string;
+
+  @ApiPropertyOptional({
+    description: "Origen del registro",
+    enum: ["manual", "audio_libre", "audio_lote"],
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(manual|audio_libre|audio_lote)$/, {
+    message: "origen debe ser 'manual', 'audio_libre' o 'audio_lote'",
+  })
+  origen?: string;
 }
