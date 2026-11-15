@@ -428,15 +428,31 @@ export class MonitoreosService {
       nombreOriginal,
       mimeType,
     );
-
     const lotes = await this.lotesEnScope(user);
     const candidatos = this.rankearLotes(texto, lotes).slice(0, 5);
     const mejor = candidatos[0];
+    // Palabra completa prioritaria: un único lote mencionado exacto (+ señal
+    // de empresa) resuelve sin más. Si no, orden de prioridad: el primero
+    // con cualquier margen sobre el segundo (los empates van a manual).
+    // La señal de empresa (≥1.5) se exige siempre: evita asignar a otro productor.
+    const exactos = candidatos.filter((c) => c.loteExacto && c.empresaPts >= 1.5);
+    const margen =
+      candidatos.length > 1 ? mejor.puntaje - candidatos[1].puntaje : Infinity;
     const unico =
       candidatos.length > 0 &&
-      mejor.puntaje >= 5 &&
       mejor.empresaPts >= 1.5 &&
-      (candidatos.length === 1 || mejor.puntaje >= candidatos[1].puntaje + 2);
+      (exactos.length === 1 || (mejor.puntaje >= 5 && margen > 0));
+    this.logger.log(
+      `[voz] texto="${texto.slice(0, 120)}" candidatos=${JSON.stringify(
+        candidatos.map((c) => ({
+          lote: c.lote.descripcion,
+          empresa: c.lote.empresa?.nombre,
+          puntaje: c.puntaje,
+          empresaPts: c.empresaPts,
+          ex: c.loteExacto ? 1 : 0,
+        })),
+      )} unico=${unico}`,
+    );
 
     const fecha =
       opts.fecha && /^\d{4}-\d{2}-\d{2}$/.test(opts.fecha)
@@ -463,13 +479,16 @@ export class MonitoreosService {
     // Resolución: lote único + producción única → idCampania.
     // En cualquier otro caso se guarda igual con idCampania NULL para
     // resolver después (la web lo muestra, el móvil lo resuelve).
+    // Si el match exacto es único, ese es el elegido aunque no lidere.
+    const elegido =
+      exactos.length === 1 ? exactos[0] : mejor;
     let idCampania: number | null = null;
     let producciones:
       | { id: number; cultivo: string | null; variedad: string | null }[]
       | undefined;
-    if (unico && mejor) {
+    if (unico && elegido) {
       const prods = await this.campaniaRepo.find({
-        where: { idLote: mejor.lote.id, campania: per },
+        where: { idLote: elegido.lote.id, campania: per },
         relations: { cultivo: true, variedad: true },
       });
       const activas = prods.filter((p) => p.cultivo);
@@ -489,8 +508,8 @@ export class MonitoreosService {
       fecha,
       hora,
       diagnostico:
-        idCampania != null && unico && mejor
-          ? extraerObservacion(texto, mejor.lote)
+        idCampania != null && unico && elegido
+          ? extraerObservacion(texto, elegido.lote)
           : texto,
       observaciones: null,
       creadoPorUid: user.firebaseUid ?? user.id ?? null,
@@ -538,13 +557,13 @@ export class MonitoreosService {
    * Heurística con tolerancia a errores de transcripción ("Lissandro"→
    * "Lisandro", "Lotte"→"Lote", "Catoli"→"Acatoli"): puntúa por similitud
    * de palabras (Levenshtein) en empresa (máx 3), lote (máx 5) y campo (1).
-   * La resolución exige lote bien parado (≥5), alguna señal de empresa
-   * (≥1.5, evita asignar el lote a otro productor) y margen (≥2).
+   * La resolución exige señal de empresa (≥1.5, evita asignar el lote a otro
+   * productor) y o bien mención exacta única o bien primer puesto con margen.
    */
   private rankearLotes(
     texto: string,
     lotes: Lote[],
-  ): { lote: Lote; puntaje: number; empresaPts: number }[] {
+  ): { lote: Lote; puntaje: number; empresaPts: number; loteExacto: boolean }[] {
     const norm = normalizar(texto);
     if (!norm) return [];
     const rankeados = lotes
@@ -679,8 +698,7 @@ export function levenshtein(a: string, b: string): number {
 }
 
 /** Palabras útiles para matcheo (sin muletillas de dictado ni 1 letra). */
-export function palabras(s: string): string[] {
-  const ignorar = new Set([
+export function palabras(s: string): string[] {  const ignorar = new Set([
     "lote",
     "lotes",
     "lotte",
@@ -703,6 +721,21 @@ export function palabras(s: string): string[] {
   });
 }
 
+/** Escapa un literal para usarlo en RegExp. */
+export function escaparRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * ¿El nombre aparece como palabra(s) completa(s) en el texto? Evita que
+ * "este" matchee dentro de "estela": se exige borde de palabra.
+ */
+export function menciona(norm: string, nombre: string): boolean {
+  const n = nombre.trim();
+  if (n.length < 3) return false;
+  return new RegExp(`\\b${escaparRegex(n)}\\b`).test(norm);
+}
+
 /**
  * Puntaje de un lote contra el texto normalizado (exportado para probar).
  * Empresa: promedio de mejor similitud por palabra (≥0.85→3, ≥0.7→1.5).
@@ -716,7 +749,7 @@ export function puntuarLote(
     empresa?: { nombre?: string | null } | null;
     campo?: { nombre?: string | null } | null;
   },
-): { puntaje: number; empresaPts: number } {
+): { puntaje: number; empresaPts: number; loteExacto: boolean } {
   const tokens = palabras(norm);
   const mejorPalabra = (nombre: string): number => {
     const ws = palabras(nombre);
@@ -734,9 +767,19 @@ export function puntuarLote(
   const empresaPts = empresaSim >= 0.85 ? 3 : empresaSim >= 0.7 ? 1.5 : 0;
 
   let lotePts = 0;
+  let loteExacto = false;
   const desc = normalizar(lote.descripcion ?? "");
-  if (desc.length >= 3 && norm.includes(desc)) {
+  const sinEspacios = (s: string) => s.replace(/ /g, "");
+  if (menciona(norm, desc)) {
+    // Palabra completa ("estela" no es "este"): 5 y decisiva.
     lotePts = 5;
+    loteExacto = true;
+  } else if (
+    sinEspacios(desc).length >= 6 &&
+    sinEspacios(norm).includes(sinEspacios(desc))
+  ) {
+    // Substring sin espacios ("delia polaco" dictado junto o separado): 4.
+    lotePts = 4;
   } else {
     const s = mejorPalabra(desc);
     if (s >= 0.85) lotePts = 4;
@@ -750,9 +793,9 @@ export function puntuarLote(
   }
 
   const campo = normalizar(lote.campo?.nombre ?? "");
-  const campoPts = campo.length >= 4 && norm.includes(campo) ? 1 : 0;
+  const campoPts = menciona(norm, campo) ? 1 : 0;
 
-  return { puntaje: empresaPts + lotePts + campoPts, empresaPts };
+  return { puntaje: empresaPts + lotePts + campoPts, empresaPts, loteExacto };
 }
 
 /**
