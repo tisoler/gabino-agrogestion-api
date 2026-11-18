@@ -206,6 +206,8 @@ export class CampaniasService {
           c.comercializacionPct != null ? Number(c.comercializacionPct) : 0,
         cosechaXHa: c.cosechaXHa != null ? Number(c.cosechaXHa) : 0,
         alquilerQqHa: c.alquilerQqHa != null ? Number(c.alquilerQqHa) : 0,
+        alquilerPrecioXQq:
+          c.alquilerPrecioXQq != null ? Number(c.alquilerPrecioXQq) : null,
         labores: lMap.get(c.id) ?? [],
         insumos: iMap.get(c.id) ?? [],
         costos: cMap.get(c.id) ?? [],
@@ -311,6 +313,7 @@ export class CampaniasService {
           prodNetaTotalQq: dto.prodNetaTotalQq ?? null,
           precioXQq: dto.precioXQq ?? null,
           alquilerQqHa: dto.alquilerQqHa ?? null,
+          alquilerPrecioXQq: dto.alquilerPrecioXQq ?? null,
           comercializacionPct: dto.comercializacionPct ?? null,
           cosechaXHa: dto.cosechaXHa ?? null,
           numEmpresa,

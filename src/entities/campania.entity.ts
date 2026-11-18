@@ -103,6 +103,20 @@ export class Campania {
   })
   alquilerQqHa: number | null;
 
+  /**
+   * Precio del quintal usado para valuar el alquiler ($/qq). Editable en el
+   * FE (con default visual de la pizarra según el cultivo). Si es NULL, los
+   * cálculos usan `precioXQq` como fallback (compatibilidad con datos
+   * anteriores a la migración 040).
+   */
+  @Column("decimal", {
+    name: "alquiler_precio_x_qq",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
+  alquilerPrecioXQq: number | null;
+
   @Column("decimal", {
     name: "comercializacion_pct",
     precision: 7,

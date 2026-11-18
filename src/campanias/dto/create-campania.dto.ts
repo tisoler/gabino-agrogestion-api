@@ -71,6 +71,14 @@ export class CreateCampaniaDto {
   @IsNumber()
   alquilerQqHa?: number;
 
+  @ApiPropertyOptional({
+    description: "Precio del quintal para valuar el alquiler ($/qq)",
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  alquilerPrecioXQq?: number;
+
   @ApiPropertyOptional({ description: "Comercialización en % (0-100)" })
   @IsOptional()
   @Type(() => Number)

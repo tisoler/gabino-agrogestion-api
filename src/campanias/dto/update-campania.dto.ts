@@ -67,6 +67,12 @@ export class UpdateCampaniaDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  alquilerPrecioXQq?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   comercializacionPct?: number | null;
 
   @ApiPropertyOptional()

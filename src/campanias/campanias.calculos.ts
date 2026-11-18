@@ -29,6 +29,11 @@ export interface CampaniaParaCalculo {
   comercializacionPct: number;
   cosechaXHa: number;
   alquilerQqHa: number;
+  /**
+   * Precio del quintal para el alquiler ($/qq). NULL/undefined = fallback a
+   * `precioXQq` (datos anteriores a la migración 040).
+   */
+  alquilerPrecioXQq?: number | string | null;
   labores: CampaniaLaborCalc[];
   insumos: CampaniaInsumoCalc[];
   costos: CampaniaCostoCalc[];
@@ -81,6 +86,10 @@ export function calcularResultados(
   const comercPct = num(c.comercializacionPct);
   const cosechaHa = num(c.cosechaXHa);
   const alquilerQqHa = num(c.alquilerQqHa);
+  const precioAlquiler =
+    c.alquilerPrecioXQq === null || c.alquilerPrecioXQq === undefined
+      ? precio
+      : num(c.alquilerPrecioXQq);
   const dInsumo = num(dolarInsumo) || 1;
 
   const rendimientoQqHa = supCosechada > 0 ? prodNeta / supCosechada : 0;
@@ -112,7 +121,7 @@ export function calcularResultados(
   const totalCostosDirectosHa =
     cosechaHa + costoTotalLaboresHa + costoTotalInsumosHa + costoTotalCostosHa;
   const margenBrutoSAlquilerHa = ingresoNetoHa - totalCostosDirectosHa;
-  const costoAlquilerHa = alquilerQqHa * precio;
+  const costoAlquilerHa = alquilerQqHa * precioAlquiler;
   const margenBrutoCAlquilerHa = margenBrutoSAlquilerHa - costoAlquilerHa;
 
   return {

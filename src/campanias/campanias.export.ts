@@ -38,6 +38,11 @@ export function buildCampaniaXls(campania: any): Buffer {
   const supCosechada = num(campania.supCosechada);
   const supDiv = (v: number): number => (v > 0 ? v : 1);
 
+  const precioAlquiler =
+    campania.alquilerPrecioXQq === null ||
+    campania.alquilerPrecioXQq === undefined
+      ? num(campania.precioXQq)
+      : num(campania.alquilerPrecioXQq);
   const resultados = calcularResultados({
     supSembrada,
     supCosechada,
@@ -46,6 +51,7 @@ export function buildCampaniaXls(campania: any): Buffer {
     comercializacionPct: num(campania.comercializacionPct),
     cosechaXHa: num(campania.cosechaXHa),
     alquilerQqHa: num(campania.alquilerQqHa),
+    alquilerPrecioXQq: precioAlquiler,
     labores: campania.labores || [],
     insumos: campania.insumos || [],
     costos: campania.costos || [],
@@ -82,6 +88,14 @@ export function buildCampaniaXls(campania: any): Buffer {
       "",
       "Alquiler (QQ/ha)",
       num(campania.alquilerQqHa),
+    ],
+    [],
+    [
+      "Precio alquiler ($/qq)",
+      precioAlquiler,
+      "",
+      "Costo alquiler ($/ha)",
+      round2(resultados.costoAlquilerHa),
     ],
     [],
     [
