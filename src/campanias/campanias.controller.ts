@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -21,8 +22,20 @@ import {
 } from "@nestjs/swagger";
 import { CampaniasService } from "./campanias.service";
 import { buildCampaniaXls } from "./campanias.export";
+import {
+  buildSegurosCsv,
+  buildSegurosRows,
+  buildSegurosXls,
+  nombreArchivoSeguros,
+} from "./campanias.seguros";
 import { CreateCampaniaDto } from "./dto/create-campania.dto";
 import { UpdateCampaniaDto } from "./dto/update-campania.dto";
+import {
+  CompartirSegurosDto,
+  DescargarSegurosDto,
+  GuardarSegurosDto,
+} from "./dto/seguros.dto";
+import { SpacesService } from "../spaces/spaces.service";
 import {
   CreateCampaniaDetalleCostoDto,
   CreateCampaniaDetalleInsumoDto,
@@ -42,7 +55,10 @@ import { Permissions } from "../auth/decorators/permissions.decorator";
 @UseGuards(FirebaseGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class CampaniasController {
-  constructor(private readonly service: CampaniasService) {}
+  constructor(
+    private readonly service: CampaniasService,
+    private readonly spaces: SpacesService,
+  ) {}
 
   // ---------------------------------------------------------------------------
   // Cabecera
@@ -124,6 +140,103 @@ export class CampaniasController {
       idVariedad: parseIds(idVariedad),
       idLote: parseIds(idLote),
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Seguros: planilla de granizo (rutas estáticas antes de `:id`)
+  // ---------------------------------------------------------------------------
+  @Get("seguros/planilla")
+  @Permissions("lectura:campania")
+  @ApiOperation({
+    summary: "Filas para la planilla de seguros de las producciones indicadas",
+  })
+  @ApiQuery({
+    name: "ids",
+    required: true,
+    description: "IDs separados por coma",
+  })
+  async segurosPlanilla(@Request() req, @Query("ids") ids?: string) {
+    const list = (ids ?? "")
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n));
+    return this.service.getSegurosPlanilla(list, req.user);
+  }
+
+  @Post("seguros/guardar")
+  @Permissions("escritura:campania")
+  @ApiOperation({
+    summary:
+      "Guarda datos de seguros en las producciones (aseguradora, qq, fechas de siembra) sin generar archivo",
+  })
+  async segurosGuardar(@Body() dto: GuardarSegurosDto, @Request() req) {
+    const { campanias } = await this.service.guardarSegurosDatos(dto, req.user);
+    return campanias;
+  }
+
+  @Post("seguros/descargar")
+  @Permissions("escritura:campania")
+  @ApiOperation({
+    summary:
+      "Guarda aseguradora + qq en las producciones y devuelve la planilla (csv/xls)",
+  })
+  async segurosDescargar(
+    @Body() dto: DescargarSegurosDto,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const formato = dto.formato ?? "xls";
+    const { campanias, aseguradora } = await this.service.guardarSegurosDatos(
+      dto,
+      req.user,
+    );
+    if (!aseguradora) {
+      throw new BadRequestException(
+        "La empresa de seguros es obligatoria para descargar la planilla",
+      );
+    }
+    const rows = buildSegurosRows(
+      campanias.map((c) => ({
+        campania: c,
+        qq: c.qqAsegurados != null ? Number(c.qqAsegurados) : null,
+      })),
+    );
+    const buffer =
+      formato === "csv" ? buildSegurosCsv(rows) : buildSegurosXls(rows);
+    const nombre = nombreArchivoSeguros(aseguradora.nombre, formato);
+    res.setHeader(
+      "Content-Type",
+      formato === "csv"
+        ? "text/csv; charset=utf-8"
+        : "application/vnd.ms-excel",
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${nombre}"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.send(buffer);
+  }
+
+  @Post("seguros/compartir")
+  @Permissions("escritura:campania")
+  @ApiOperation({
+    summary:
+      "Guarda aseguradora + qq en las producciones, sube la planilla y devuelve su URL para WhatsApp",
+  })
+  async segurosCompartir(@Body() dto: CompartirSegurosDto, @Request() req) {
+    const { campanias } = await this.service.guardarSegurosDatos(dto, req.user);
+    const rows = buildSegurosRows(
+      campanias.map((c) => ({
+        campania: c,
+        qq: c.qqAsegurados != null ? Number(c.qqAsegurados) : null,
+      })),
+    );
+    const buffer = buildSegurosXls(rows);
+    const key = this.spaces.generarKeySeguros("xls");
+    const url = await this.spaces.subirArchivo(
+      key,
+      buffer,
+      "application/vnd.ms-excel",
+    );
+    return { url };
   }
 
   @Get(":id")

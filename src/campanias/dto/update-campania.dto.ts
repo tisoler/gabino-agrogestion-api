@@ -80,4 +80,22 @@ export class UpdateCampaniaDto {
   @Type(() => Number)
   @IsNumber()
   cosechaXHa?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fechaSiembra?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idAseguradora?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  qqAsegurados?: number | null;
 }

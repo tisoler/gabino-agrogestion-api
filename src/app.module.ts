@@ -22,6 +22,7 @@ import { AnalisisModule } from "./analisis/analisis.module";
 import { AnalisisSueloModule } from "./analisis-suelo/analisis-suelo.module";
 import { MonitoreosModule } from "./monitoreos/monitoreos.module";
 import { FacturacionModule } from "./facturacion/facturacion.module";
+import { AseguradorasModule } from "./aseguradoras/aseguradoras.module";
 
 import { Empresa } from "./entities/empresa.entity";
 import { Labor } from "./entities/labor.entity";
@@ -46,6 +47,7 @@ import { MensajeMasivo } from "./entities/mensaje-masivo.entity";
 import { AnalisisSuelo } from "./entities/analisis-suelo.entity";
 import { AnalisisSueloDetalle } from "./entities/analisis-suelo-detalle.entity";
 import { MonitoreoLote } from "./entities/monitoreo-lote.entity";
+import { Aseguradora } from "./entities/aseguradora.entity";
 import { FacturacionConfig } from "./entities/facturacion-config.entity";
 import { PrecioPizarra } from "./entities/precio-pizarra.entity";
 import { ProduccionPago } from "./entities/produccion-pago.entity";
@@ -88,6 +90,7 @@ import { ProduccionPago } from "./entities/produccion-pago.entity";
           AnalisisSuelo,
           AnalisisSueloDetalle,
           MonitoreoLote,
+          Aseguradora,
           FacturacionConfig,
           PrecioPizarra,
           ProduccionPago,
@@ -118,6 +121,7 @@ import { ProduccionPago } from "./entities/produccion-pago.entity";
     AnalisisSueloModule,
     MonitoreosModule,
     FacturacionModule,
+    AseguradorasModule,
   ],
 })
 export class AppModule {}

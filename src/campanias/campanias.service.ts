@@ -13,6 +13,7 @@ import { Insumo } from "../entities/insumo.entity";
 import { Costo } from "../entities/costo.entity";
 import { Cultivo } from "../entities/cultivo.entity";
 import { Variedad } from "../entities/variedad.entity";
+import { Aseguradora } from "../entities/aseguradora.entity";
 import { CreateCampaniaDto } from "./dto/create-campania.dto";
 import { UpdateCampaniaDto } from "./dto/update-campania.dto";
 import {
@@ -80,6 +81,8 @@ export class CampaniasService {
     @InjectRepository(Costo) private costoRepo: Repository<Costo>,
     @InjectRepository(Cultivo) private cultivoRepo: Repository<Cultivo>,
     @InjectRepository(Variedad) private variedadRepo: Repository<Variedad>,
+    @InjectRepository(Aseguradora)
+    private aseguradoraRepo: Repository<Aseguradora>,
     private notificaciones: NotificacionesService,
     private cache: FirestoreCacheService,
   ) {}
@@ -235,7 +238,12 @@ export class CampaniasService {
   async findOne(id: number, user: any) {
     const campania = await this.campaniaRepo.findOne({
       where: { id },
-      relations: { lote: { campo: true }, cultivo: true, variedad: true },
+      relations: {
+        lote: { campo: true },
+        cultivo: true,
+        variedad: true,
+        aseguradora: true,
+      },
     });
     if (!campania) throw new NotFoundException("Campaña no encontrada");
 
@@ -283,6 +291,8 @@ export class CampaniasService {
     await this.assertCultivo(dto.idCultivo, user);
     if (dto.idVariedad)
       await this.assertVariedad(dto.idVariedad, dto.idCultivo, user);
+    if (dto.idAseguradora != null)
+      await this.assertAseguradora(dto.idAseguradora);
 
     await this.assertProduccionUnica(dto.idLote, dto.campania, dto.idCultivo);
 
@@ -314,6 +324,9 @@ export class CampaniasService {
           precioXQq: dto.precioXQq ?? null,
           alquilerQqHa: dto.alquilerQqHa ?? null,
           alquilerPrecioXQq: dto.alquilerPrecioXQq ?? null,
+          fechaSiembra: dto.fechaSiembra ?? null,
+          idAseguradora: dto.idAseguradora ?? null,
+          qqAsegurados: dto.qqAsegurados ?? null,
           comercializacionPct: dto.comercializacionPct ?? null,
           cosechaXHa: dto.cosechaXHa ?? null,
           numEmpresa,
@@ -351,6 +364,8 @@ export class CampaniasService {
       dto.idVariedad !== undefined ? dto.idVariedad : campania.idVariedad;
     const cultivoId = dto.idCultivo ?? campania.idCultivo;
     if (variedadId) await this.assertVariedad(variedadId, cultivoId, user);
+    if (dto.idAseguradora != null)
+      await this.assertAseguradora(dto.idAseguradora);
 
     await this.assertProduccionUnica(
       dto.idLote ?? campania.idLote,
@@ -365,6 +380,155 @@ export class CampaniasService {
     } catch (e) {
       this.throwProduccionDuplicada(e);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Seguros: planilla de granizo
+  // ---------------------------------------------------------------------------
+  private normalizarIdsSeguros(ids: unknown): number[] {
+    const arr = Array.isArray(ids) ? ids : [];
+    const unique = [
+      ...new Set(
+        arr.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0),
+      ),
+    ];
+    if (unique.length === 0) {
+      throw new BadRequestException("No se indicaron producciones");
+    }
+    return unique;
+  }
+
+  private async findSegurosCampanias(ids: number[], user: any, accion: string) {
+    const campanias = await this.campaniaRepo.find({
+      where: { id: In(ids) },
+      relations: {
+        lote: { campo: true, empresa: true },
+        cultivo: true,
+        variedad: true,
+        aseguradora: true,
+      },
+    });
+    const encontradas = new Map(campanias.map((c) => [c.id, c]));
+    const faltantes = ids.filter((id) => !encontradas.has(id));
+    if (faltantes.length > 0) {
+      throw new NotFoundException(
+        `Producciones no encontradas: ${faltantes.join(", ")}`,
+      );
+    }
+    for (const c of campanias) {
+      await this.assertCampaniaAcceso(c, user, accion);
+    }
+    return [...campanias].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  }
+
+  /**
+   * Filas para el modal de seguros (con centroide del lote, fecha de siembra
+   * y datos ya guardados de aseguradora/qq).
+   */
+  async getSegurosPlanilla(ids: unknown, user: any) {
+    return this.findSegurosCampanias(
+      this.normalizarIdsSeguros(ids),
+      user,
+      "ver",
+    );
+  }
+
+  /**
+   * Guarda datos de seguros en las producciones (aseguradora, qq y/o fechas
+   * de siembra) y devuelve las campañas actualizadas. Semántica parcial: solo
+   * se tocan los campos enviados; dentro de `qq`/`fechaSiembra` solo los ids
+   * presentes (valor vacío = borrar). Así el modal puede guardar la fecha de
+   * siembra sin obligar a elegir aseguradora ni descargar.
+   */
+  async guardarSegurosDatos(
+    dto: {
+      ids: unknown;
+      qq?: Record<string, unknown>;
+      fechaSiembra?: Record<string, unknown>;
+      idVariedad?: Record<string, unknown>;
+      aseguradoraId?: number;
+    },
+    user: any,
+  ) {
+    let aseguradora: Aseguradora | null = null;
+    if (dto.aseguradoraId !== undefined && dto.aseguradoraId !== null) {
+      aseguradora = await this.aseguradoraRepo.findOne({
+        where: { id: Number(dto.aseguradoraId) },
+      });
+      if (!aseguradora) {
+        throw new BadRequestException(
+          "La empresa de seguros indicada no existe",
+        );
+      }
+      if (!aseguradora.activo) {
+        throw new BadRequestException(
+          "La empresa de seguros está inactiva. Elegí una activa o activala desde Configuración.",
+        );
+      }
+    }
+    const ids = this.normalizarIdsSeguros(dto.ids);
+    const campanias = await this.findSegurosCampanias(ids, user, "editar");
+
+    for (const c of campanias) {
+      const key = String(c.id);
+      if (dto.qq && Object.prototype.hasOwnProperty.call(dto.qq, key)) {
+        const qqRaw = dto.qq[key];
+        const qq =
+          qqRaw === undefined || qqRaw === null || qqRaw === ""
+            ? null
+            : Number(qqRaw);
+        if (qq !== null && (!Number.isFinite(qq) || qq < 0)) {
+          throw new BadRequestException(
+            `QQ a asegurar inválido para la producción #${c.id}`,
+          );
+        }
+        c.qqAsegurados = qq;
+      }
+      if (
+        dto.fechaSiembra &&
+        Object.prototype.hasOwnProperty.call(dto.fechaSiembra, key)
+      ) {
+        const fRaw = dto.fechaSiembra[key];
+        if (fRaw === undefined || fRaw === null || fRaw === "") {
+          c.fechaSiembra = null;
+        } else {
+          const f = String(fRaw);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) {
+            throw new BadRequestException(
+              `Fecha de siembra inválida para la producción #${c.id} (usá YYYY-MM-DD)`,
+            );
+          }
+          c.fechaSiembra = f;
+        }
+      }
+      if (
+        dto.idVariedad &&
+        Object.prototype.hasOwnProperty.call(dto.idVariedad, key)
+      ) {
+        const vRaw = dto.idVariedad[key];
+        if (vRaw === undefined || vRaw === null || vRaw === "") {
+          c.idVariedad = null;
+          c.variedad = null;
+        } else {
+          const variedad = await this.variedadRepo.findOne({
+            where: { id: Number(vRaw) },
+          });
+          if (!variedad || variedad.idCultivo !== c.idCultivo) {
+            throw new BadRequestException(
+              `Variedad inválida para la producción #${c.id} (no pertenece a su cultivo)`,
+            );
+          }
+          c.idVariedad = variedad.id;
+          c.variedad = variedad;
+        }
+      }
+      if (aseguradora) {
+        c.idAseguradora = aseguradora.id;
+        c.aseguradora = aseguradora;
+      }
+      await this.campaniaRepo.save(c);
+    }
+    return { campanias, aseguradora };
   }
 
   async remove(id: number, user: any) {
@@ -683,6 +847,14 @@ export class CampaniasService {
         );
       }
     }
+  }
+
+  private async assertAseguradora(idAseguradora: number) {
+    const aseguradora = await this.aseguradoraRepo.findOne({
+      where: { id: idAseguradora },
+    });
+    if (!aseguradora)
+      throw new BadRequestException("La empresa de seguros indicada no existe");
   }
 
   private async assertVariedad(

@@ -10,6 +10,7 @@ import { randomBytes } from "crypto";
 
 const PREFIXO_PRESCRIPCIONES = "prescripciones/";
 const PREFIXO_MONITOREOS = "monitoreos/";
+const PREFIXO_SEGUROS = "seguros/";
 
 @Injectable()
 export class SpacesService {
@@ -72,6 +73,36 @@ export class SpacesService {
   generarKeyAudio(extension = "m4a"): string {
     const ext = extension.replace(/[^a-z0-9]/gi, "") || "m4a";
     return `${PREFIXO_MONITOREOS}${randomBytes(20).toString("hex")}.${ext}`;
+  }
+
+  /**
+   * Genera una key para una planilla de seguros (mismo esquema
+   * anti-adivinación que los PDFs). `extension` sin punto (ej: "xls").
+   */
+  generarKeySeguros(extension = "xls"): string {
+    const ext = extension.replace(/[^a-z0-9]/gi, "") || "xls";
+    return `${PREFIXO_SEGUROS}${randomBytes(20).toString("hex")}.${ext}`;
+  }
+
+  /**
+   * Sube un archivo genérico al Space con ACL público y devuelve la URL
+   * pública (para planillas de seguros: xls/csv).
+   */
+  async subirArchivo(
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: `${this.pathPrefix}${key}`,
+        Body: buffer,
+        ContentType: contentType,
+        ACL: "public-read",
+      }),
+    );
+    return this.construirUrl(key);
   }
 
   /**

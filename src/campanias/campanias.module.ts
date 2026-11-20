@@ -10,10 +10,12 @@ import { Insumo } from "../entities/insumo.entity";
 import { Costo } from "../entities/costo.entity";
 import { Cultivo } from "../entities/cultivo.entity";
 import { Variedad } from "../entities/variedad.entity";
+import { Aseguradora } from "../entities/aseguradora.entity";
 import { CampaniasController } from "./campanias.controller";
 import { CampaniasService } from "./campanias.service";
 import { AuthModule } from "../auth/auth.module";
 import { NotificacionesModule } from "../notificaciones/notificaciones.module";
+import { SpacesService } from "../spaces/spaces.service";
 
 @Module({
   imports: [
@@ -28,12 +30,13 @@ import { NotificacionesModule } from "../notificaciones/notificaciones.module";
       Costo,
       Cultivo,
       Variedad,
+      Aseguradora,
     ]),
     AuthModule,
     NotificacionesModule,
   ],
   controllers: [CampaniasController],
-  providers: [CampaniasService],
+  providers: [CampaniasService, SpacesService],
   exports: [CampaniasService],
 })
 export class CampaniasModule {}

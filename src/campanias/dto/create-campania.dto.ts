@@ -90,4 +90,22 @@ export class CreateCampaniaDto {
   @Type(() => Number)
   @IsNumber()
   cosechaXHa?: number;
+
+  @ApiPropertyOptional({ description: "Fecha de siembra (YYYY-MM-DD)" })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fechaSiembra?: string;
+
+  @ApiPropertyOptional({ description: "ID de la empresa de seguros" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idAseguradora?: number;
+
+  @ApiPropertyOptional({ description: "Quintales a asegurar" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  qqAsegurados?: number;
 }

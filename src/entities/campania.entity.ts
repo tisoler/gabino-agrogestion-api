@@ -11,6 +11,7 @@ import {
 import { Lote } from "./lote.entity";
 import { Cultivo } from "./cultivo.entity";
 import { Variedad } from "./variedad.entity";
+import { Aseguradora } from "./aseguradora.entity";
 import { CampaniaLabor } from "./campania-labor.entity";
 import { CampaniaInsumo } from "./campania-insumo.entity";
 import { CampaniaCosto } from "./campania-costo.entity";
@@ -116,6 +117,30 @@ export class Campania {
     nullable: true,
   })
   alquilerPrecioXQq: number | null;
+
+  /**
+   * Fecha de siembra (opcional, editable). Backfill en la migración 041 con
+   * la fecha mínima de las labores de siembra cargadas en cada producción.
+   */
+  @Column({ name: "fecha_siembra", type: "date", nullable: true })
+  fechaSiembra: string | null;
+
+  /** Empresa de seguros elegida al generar la planilla de seguros. */
+  @Column({ name: "id_aseguradora", nullable: true })
+  idAseguradora: number | null;
+
+  @ManyToOne(() => Aseguradora, { eager: false, nullable: true })
+  @JoinColumn({ name: "id_aseguradora" })
+  aseguradora: Aseguradora | null;
+
+  /** Quintales a asegurar (se fijan al descargar/compartir la planilla). */
+  @Column("decimal", {
+    name: "qq_asegurados",
+    precision: 14,
+    scale: 4,
+    nullable: true,
+  })
+  qqAsegurados: number | null;
 
   @Column("decimal", {
     name: "comercializacion_pct",
