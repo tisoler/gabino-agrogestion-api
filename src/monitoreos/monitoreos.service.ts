@@ -15,6 +15,7 @@ import { CreateMonitoreoDto } from "./dto/create-monitoreo.dto";
 import { UpdateMonitoreoDto } from "./dto/update-monitoreo.dto";
 import { SpacesService } from "../spaces/spaces.service";
 import { TranscripcionService } from "./transcripcion.service";
+import { VozContenidoService } from "./voz-contenido.service";
 
 export interface FindMonitoreosFilters {
   currentEmpresaId?: number;
@@ -44,6 +45,8 @@ export interface DesdeAudioResultado {
   texto: string;
   /** Diagnóstico guardado (sin encabezado si se auto-resolvió el lote). */
   diagnostico: string;
+  /** Observaciones separadas por palabra clave (si el audio las trae). */
+  observaciones: string | null;
   periodo: string;
   /** Lotes candidatos cuando no hubo resolución única. */
   candidatos?: CoberturaLote[];
@@ -65,6 +68,7 @@ export class MonitoreosService {
     @InjectRepository(Lote) private loteRepo: Repository<Lote>,
     private spaces: SpacesService,
     private transcripcion: TranscripcionService,
+    private contenido: VozContenidoService,
   ) {}
 
   private readonly logger = new Logger(MonitoreosService.name);
@@ -234,6 +238,16 @@ export class MonitoreosService {
       monitoreo.observaciones = dto.observaciones?.trim()
         ? dto.observaciones.trim()
         : null;
+    if (dto.prescripcionSugerida !== undefined)
+      monitoreo.prescripcionSugerida =
+        dto.prescripcionSugerida == null
+          ? null
+          : dto.prescripcionSugerida.map((l) => ({
+              idInsumo: l.idInsumo ?? null,
+              nombre: l.nombre ?? null,
+              cantidadPorHa: l.cantidadPorHa ?? null,
+              unidad: l.unidad ?? null,
+            }));
     if (dto.idCampania !== undefined) {
       // Resolver un borrador sin producción: asigna la producción validando scope.
       const campania = await this.campaniaOrThrow(dto.idCampania);
@@ -435,7 +449,9 @@ export class MonitoreosService {
     // de empresa) resuelve sin más. Si no, orden de prioridad: el primero
     // con cualquier margen sobre el segundo (los empates van a manual).
     // La señal de empresa (≥1.5) se exige siempre: evita asignar a otro productor.
-    const exactos = candidatos.filter((c) => c.loteExacto && c.empresaPts >= 1.5);
+    const exactos = candidatos.filter(
+      (c) => c.loteExacto && c.empresaPts >= 1.5,
+    );
     const margen =
       candidatos.length > 1 ? mejor.puntaje - candidatos[1].puntaje : Infinity;
     const unico =
@@ -480,8 +496,7 @@ export class MonitoreosService {
     // En cualquier otro caso se guarda igual con idCampania NULL para
     // resolver después (la web lo muestra, el móvil lo resuelve).
     // Si el match exacto es único, ese es el elegido aunque no lidere.
-    const elegido =
-      exactos.length === 1 ? exactos[0] : mejor;
+    const elegido = exactos.length === 1 ? exactos[0] : mejor;
     let idCampania: number | null = null;
     let producciones:
       | { id: number; cultivo: string | null; variedad: string | null }[]
@@ -503,15 +518,21 @@ export class MonitoreosService {
       }
     }
 
+    // Contenido: divide diagnóstico/observaciones por palabras clave y
+    // extrae líneas de prescripción si el audio la pide (prescribir/aplicar).
+    const secciones = this.contenido.dividirSecciones(texto);
+    const { lineas } = await this.contenido.extraerLineas(texto, user);
+
     const monitoreo = this.monitoreoRepo.create({
       idCampania,
       fecha,
       hora,
       diagnostico:
         idCampania != null && unico && elegido
-          ? extraerObservacion(texto, elegido.lote)
-          : texto,
-      observaciones: null,
+          ? extraerObservacion(secciones.diagnostico, elegido.lote)
+          : secciones.diagnostico,
+      observaciones: secciones.observaciones,
+      prescripcionSugerida: lineas.length > 0 ? lineas : null,
       creadoPorUid: user.firebaseUid ?? user.id ?? null,
       activo: true,
       estado: "borrador",
@@ -524,6 +545,7 @@ export class MonitoreosService {
       creado,
       texto,
       diagnostico: creado.diagnostico,
+      observaciones: creado.observaciones,
       periodo: per,
       candidatos:
         idCampania == null
@@ -563,7 +585,12 @@ export class MonitoreosService {
   private rankearLotes(
     texto: string,
     lotes: Lote[],
-  ): { lote: Lote; puntaje: number; empresaPts: number; loteExacto: boolean }[] {
+  ): {
+    lote: Lote;
+    puntaje: number;
+    empresaPts: number;
+    loteExacto: boolean;
+  }[] {
     const norm = normalizar(texto);
     if (!norm) return [];
     const rankeados = lotes
@@ -698,7 +725,8 @@ export function levenshtein(a: string, b: string): number {
 }
 
 /** Palabras útiles para matcheo (sin muletillas de dictado ni 1 letra). */
-export function palabras(s: string): string[] {  const ignorar = new Set([
+export function palabras(s: string): string[] {
+  const ignorar = new Set([
     "lote",
     "lotes",
     "lotte",

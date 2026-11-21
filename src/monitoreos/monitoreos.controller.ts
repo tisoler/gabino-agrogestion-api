@@ -141,7 +141,10 @@ export class MonitoreosController {
       storage: memoryStorage(),
       limits: { fileSize: 25 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (/^audio\//.test(file.mimetype) || /\.(m4a|mp3|wav|ogg|webm|mp4)$/i.test(file.originalname)) {
+        if (
+          /^audio\//.test(file.mimetype) ||
+          /\.(m4a|mp3|wav|ogg|webm|mp4)$/i.test(file.originalname)
+        ) {
           cb(null, true);
         } else {
           cb(new Error("El archivo debe ser un audio."), false);
@@ -156,7 +159,9 @@ export class MonitoreosController {
   })
   async transcribir(@UploadedFile() audio: Express.Multer.File) {
     if (!audio)
-      throw new BadRequestException("Falta el archivo de audio (campo 'audio').");
+      throw new BadRequestException(
+        "Falta el archivo de audio (campo 'audio').",
+      );
     return this.service.transcribirAudio(
       audio.buffer,
       audio.originalname,

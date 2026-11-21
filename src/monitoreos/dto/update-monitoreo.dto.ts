@@ -1,12 +1,16 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
+  IsArray,
   IsDateString,
   IsInt,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
+  ValidateNested,
 } from "class-validator";
+import { LineaSugeridaDto } from "./linea-sugerida.dto";
 
 export class UpdateMonitoreoDto {
   @ApiPropertyOptional({
@@ -51,4 +55,14 @@ export class UpdateMonitoreoDto {
     message: "estado debe ser 'borrador' o 'confirmado'",
   })
   estado?: string;
+
+  @ApiPropertyOptional({
+    description: "Líneas de prescripción sugeridas (editar) o null (descartar)",
+    type: [LineaSugeridaDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LineaSugeridaDto)
+  prescripcionSugerida?: LineaSugeridaDto[] | null;
 }

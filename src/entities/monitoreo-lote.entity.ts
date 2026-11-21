@@ -89,4 +89,18 @@ export class MonitoreoLote {
   /** URL pública del audio en Spaces (re-escucha en revisión). */
   @Column({ name: "audio_url", type: "text", nullable: true })
   audioUrl: string | null;
+
+  /**
+   * Líneas de prescripción sugeridas por voz
+   * ([{ idInsumo|null, nombre, cantidadPorHa|null, unidad|null }]).
+   * Staging para revisión web: al guardar se crea la prescripción real
+   * (independiente) o se descarta con null. Sin FK a propósito.
+   */
+  @Column({ name: "prescripcion_sugerida", type: "jsonb", nullable: true })
+  prescripcionSugerida: Array<{
+    idInsumo: number | null;
+    nombre?: string | null;
+    cantidadPorHa: number | null;
+    unidad?: string | null;
+  }> | null;
 }
