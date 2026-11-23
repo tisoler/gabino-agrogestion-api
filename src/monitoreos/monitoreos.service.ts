@@ -767,13 +767,16 @@ export function menciona(norm: string, nombre: string): boolean {
 /**
  * Puntaje de un lote contra el texto normalizado (exportado para probar).
  * Empresa: promedio de mejor similitud por palabra (≥0.85→3, ≥0.7→1.5).
- * Lote: mención exacta (5), mejor palabra (≥0.85→4, ≥0.7→2), nº ("lote 7"→2).
- * Campo: mención exacta (1).
+ * Lote (descripción + alias): mención exacta (5), substring largo (4),
+ * mejor palabra (≥0.85→4, ≥0.7→2), nº ("lote 7"→2).
+ * Campo: mención exacta (2); con un solo lote en ese campo alcanza para
+ * resolver, con varios va a resolución manual.
  */
 export function puntuarLote(
   norm: string,
   lote: {
     descripcion?: string | null;
+    alias?: string[] | null;
     empresa?: { nombre?: string | null } | null;
     campo?: { nombre?: string | null } | null;
   },
@@ -796,32 +799,41 @@ export function puntuarLote(
 
   let lotePts = 0;
   let loteExacto = false;
-  const desc = normalizar(lote.descripcion ?? "");
+  const nombres = [
+    normalizar(lote.descripcion ?? ""),
+    ...(lote.alias ?? []).map((a) => normalizar(a)).filter(Boolean),
+  ].filter((n) => n.length >= 3);
   const sinEspacios = (s: string) => s.replace(/ /g, "");
-  if (menciona(norm, desc)) {
-    // Palabra completa ("estela" no es "este"): 5 y decisiva.
+  const nombradoExacto = nombres.find((n) => menciona(norm, n));
+  if (nombradoExacto) {
+    // Palabra completa ("estela" no es "este", vale también para alias): 5 y decisiva.
     lotePts = 5;
     loteExacto = true;
   } else if (
-    sinEspacios(desc).length >= 6 &&
-    sinEspacios(norm).includes(sinEspacios(desc))
+    nombres.some(
+      (n) =>
+        sinEspacios(n).length >= 6 &&
+        sinEspacios(norm).includes(sinEspacios(n)),
+    )
   ) {
     // Substring sin espacios ("delia polaco" dictado junto o separado): 4.
     lotePts = 4;
   } else {
-    const s = mejorPalabra(desc);
+    const s = Math.max(0, ...nombres.map((n) => mejorPalabra(n)));
     if (s >= 0.85) lotePts = 4;
     else if (s >= 0.7) lotePts = 2;
     if (lotePts === 0) {
       // Nº de lote ("lote 7", "lotte 7"): coincide número aislado.
-      const num = desc.match(/\d+/)?.[0];
-      if (num && new RegExp(`\\blot+e+a?\\s*0*${num}\\b`).test(norm))
+      const nums = nombres.flatMap((n) => n.match(/\d+/g) ?? []);
+      if (
+        nums.some((num) => new RegExp(`\\blot+e+a?\\s*0*${num}\\b`).test(norm))
+      )
         lotePts = 2;
     }
   }
 
   const campo = normalizar(lote.campo?.nombre ?? "");
-  const campoPts = menciona(norm, campo) ? 1 : 0;
+  const campoPts = menciona(norm, campo) ? 2 : 0;
 
   return { puntaje: empresaPts + lotePts + campoPts, empresaPts, loteExacto };
 }

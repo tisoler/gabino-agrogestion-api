@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
+  IsArray,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -37,6 +38,16 @@ export class CreateLoteDto {
   @IsString()
   @MaxLength(500)
   descripcion?: string;
+
+  @ApiPropertyOptional({
+    description: "Nombres alternativos del lote (para reconocer por voz)",
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  alias?: string[];
 
   @ApiPropertyOptional({ description: 'ID del campo del lote (tabla "campo")' })
   @IsOptional()

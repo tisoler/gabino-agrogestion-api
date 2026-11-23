@@ -43,6 +43,13 @@ export class Lote {
   descripcion: string;
 
   /**
+   * Nombres alternativos ("como lo llama el asesor"), para matcheo por voz.
+   * JSONB simple (lista de strings); sin FK: los empates los resuelve la persona.
+   */
+  @Column({ type: "jsonb", nullable: true })
+  alias: string[] | null;
+
+  /**
    * Campo: agrupación de lotes (p.ej. establecimiento o parcela).
    * Es un id referenciando la tabla "campo" (como categoría en insumos).
    */

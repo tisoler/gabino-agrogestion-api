@@ -202,6 +202,7 @@ export class LotesService {
 
     const lote = this.loteRepository.create({
       descripcion: createLoteDto.descripcion,
+      alias: normalizarAlias(createLoteDto.alias),
       idCampo: createLoteDto.idCampo ?? null,
       idUsuario: createLoteDto.idUsuario,
       nombreUsuario: createLoteDto.nombreUsuario ?? "",
@@ -258,6 +259,30 @@ export class LotesService {
     }
 
     Object.assign(lote, updateLoteDto);
+    if (updateLoteDto.alias !== undefined) {
+      lote.alias = normalizarAlias(updateLoteDto.alias);
+    }
     return this.loteRepository.save(lote);
   }
+}
+
+/**
+ * Normaliza alias: recorta, quita vacíos y duplicados (máx 10, 100 car.).
+ * `undefined` = no tocar; `null`/vacío = limpiar.
+ */
+export function normalizarAlias(
+  alias: string[] | null | undefined,
+): string[] | null | undefined {
+  if (alias === undefined) return undefined;
+  if (alias === null) return null;
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  for (const a of alias) {
+    const n = String(a ?? "").trim();
+    if (!n || vistos.has(n.toLowerCase())) continue;
+    vistos.add(n.toLowerCase());
+    salida.push(n.slice(0, 100));
+    if (salida.length >= 10) break;
+  }
+  return salida.length > 0 ? salida : null;
 }
