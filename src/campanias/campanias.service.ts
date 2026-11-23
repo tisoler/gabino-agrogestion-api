@@ -270,7 +270,18 @@ export class CampaniasService {
       }),
     ]);
 
-    return { ...campania, labores, insumos, costos };
+    const { fecha, origen } = this.resolverFechaSiembra(
+      labores,
+      campania.fechaSiembra,
+    );
+    return {
+      ...campania,
+      fechaSiembra: fecha,
+      fechaSiembraOrigen: origen,
+      labores,
+      insumos,
+      costos,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -367,6 +378,12 @@ export class CampaniasService {
     if (dto.idAseguradora != null)
       await this.assertAseguradora(dto.idAseguradora);
 
+    // Con labor de siembra la fecha la define la labor y no es editable:
+    // se ignora si llega en el PATCH (p. ej. guardado desfasado del detalle).
+    if (dto.fechaSiembra !== undefined && (await this.tieneLaborSiembra(id))) {
+      delete dto.fechaSiembra;
+    }
+
     await this.assertProduccionUnica(
       dto.idLote ?? campania.idLote,
       dto.campania ?? campania.campania,
@@ -398,6 +415,59 @@ export class CampaniasService {
     return unique;
   }
 
+  /**
+   * Matchea labores de siembra ("Siembra grano fino", "Siembra grano grueso",
+   * etc.). Se excluye "resiembra", que no define la fecha de siembra.
+   */
+  private esLaborSiembra(nombre: unknown): boolean {
+    const n = String(nombre ?? "").toLowerCase();
+    return n.includes("siembra") && !n.includes("resiembra");
+  }
+
+  /**
+   * Fecha de siembra efectiva: si hay labor de siembra se toma la más
+   * temprana y la fecha deja de ser editable (origen labor); si no, vale la
+   * fecha manual guardada en la producción (origen manual).
+   */
+  private resolverFechaSiembra(
+    labores: Array<{
+      id: number;
+      fecha: string;
+      labor?: { nombre?: string | null } | null;
+    }>,
+    manual: string | null,
+  ): {
+    fecha: string | null;
+    origen: { fuente: "labor"; laborNombre: string } | { fuente: "manual" };
+  } {
+    const siembras = (labores || [])
+      .filter((l) => this.esLaborSiembra(l.labor?.nombre))
+      .sort((a, b) =>
+        a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.id - b.id,
+      );
+    if (siembras.length > 0) {
+      return {
+        fecha: siembras[0].fecha,
+        origen: {
+          fuente: "labor",
+          laborNombre: siembras[0].labor?.nombre ?? "siembra",
+        },
+      };
+    }
+    return { fecha: manual ?? null, origen: { fuente: "manual" } };
+  }
+
+  private async tieneLaborSiembra(campaniaId: number): Promise<boolean> {
+    const count = await this.campaniaLaborRepo
+      .createQueryBuilder("cl")
+      .innerJoin("cl.labor", "l")
+      .where("cl.id_campania = :id", { id: campaniaId })
+      .andWhere("LOWER(l.nombre) LIKE '%siembra%'")
+      .andWhere("LOWER(l.nombre) NOT LIKE '%resiembra%'")
+      .getCount();
+    return count > 0;
+  }
+
   private async findSegurosCampanias(ids: number[], user: any, accion: string) {
     const campanias = await this.campaniaRepo.find({
       where: { id: In(ids) },
@@ -406,6 +476,7 @@ export class CampaniasService {
         cultivo: true,
         variedad: true,
         aseguradora: true,
+        labores: { labor: true },
       },
     });
     const encontradas = new Map(campanias.map((c) => [c.id, c]));
@@ -418,7 +489,19 @@ export class CampaniasService {
     for (const c of campanias) {
       await this.assertCampaniaAcceso(c, user, accion);
     }
-    return [...campanias].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+    const ordenadas = [...campanias].sort(
+      (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
+    );
+    // Fecha efectiva + origen por producción (la de labor no es editable).
+    for (const c of ordenadas) {
+      const { fecha, origen } = this.resolverFechaSiembra(
+        c.labores || [],
+        c.fechaSiembra,
+      );
+      c.fechaSiembra = fecha;
+      (c as { fechaSiembraOrigen?: unknown }).fechaSiembraOrigen = origen;
+    }
+    return ordenadas;
   }
 
   /**
@@ -471,6 +554,10 @@ export class CampaniasService {
 
     for (const c of campanias) {
       const key = String(c.id);
+      // Con labor de siembra la fecha la define la labor y no se puede pisar.
+      const fechaBloqueada =
+        this.resolverFechaSiembra(c.labores || [], null).origen.fuente ===
+        "labor";
       if (dto.qq && Object.prototype.hasOwnProperty.call(dto.qq, key)) {
         const qqRaw = dto.qq[key];
         const qq =
@@ -485,6 +572,7 @@ export class CampaniasService {
         c.qqAsegurados = qq;
       }
       if (
+        !fechaBloqueada &&
         dto.fechaSiembra &&
         Object.prototype.hasOwnProperty.call(dto.fechaSiembra, key)
       ) {
