@@ -1,6 +1,6 @@
 # Dockerfile para gabino-agrogestion-api (NestJS Backend)
 
-FROM node:24.22.1-alpine AS builder
+FROM node:24.22.3-alpine AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY . .
 RUN pnpm run build
 
 # Imagen de producción
-FROM node:24.22.1-alpine
+FROM node:24.22.3-alpine
 
 WORKDIR /app
 
