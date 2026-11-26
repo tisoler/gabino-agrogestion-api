@@ -15,6 +15,7 @@ import { CampaniasController } from "./campanias.controller";
 import { CampaniasService } from "./campanias.service";
 import { AuthModule } from "../auth/auth.module";
 import { NotificacionesModule } from "../notificaciones/notificaciones.module";
+import { CotizacionesModule } from "../cotizaciones/cotizaciones.module";
 import { SpacesService } from "../spaces/spaces.service";
 
 @Module({
@@ -34,6 +35,7 @@ import { SpacesService } from "../spaces/spaces.service";
     ]),
     AuthModule,
     NotificacionesModule,
+    CotizacionesModule,
   ],
   controllers: [CampaniasController],
   providers: [CampaniasService, SpacesService],

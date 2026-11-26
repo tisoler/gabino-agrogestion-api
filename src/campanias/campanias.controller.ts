@@ -36,6 +36,7 @@ import {
   GuardarSegurosDto,
 } from "./dto/seguros.dto";
 import { SpacesService } from "../spaces/spaces.service";
+import { CotizacionesService } from "../cotizaciones/cotizaciones.service";
 import {
   CreateCampaniaDetalleCostoDto,
   CreateCampaniaDetalleInsumoDto,
@@ -58,6 +59,7 @@ export class CampaniasController {
   constructor(
     private readonly service: CampaniasService,
     private readonly spaces: SpacesService,
+    private readonly cotizaciones: CotizacionesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -255,7 +257,16 @@ export class CampaniasController {
     @Res() res: Response,
   ) {
     const campania = await this.service.findOne(id, req.user);
-    const buffer = buildCampaniaXls(campania);
+    // Los costos de insumos se guardan en USD: se convierten a pesos con el
+    // dólar venta, igual que en el detalle (si falla, 1 = sin conversión).
+    let dolarInsumo = 1;
+    try {
+      const { venta } = await this.cotizaciones.getDolarBNA();
+      if (Number.isFinite(venta) && venta > 0) dolarInsumo = venta;
+    } catch {
+      dolarInsumo = 1;
+    }
+    const buffer = buildCampaniaXls(campania, dolarInsumo);
 
     const nombreArchivo =
       (campania?.lote?.descripcion || `campania-${id}`)

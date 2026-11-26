@@ -33,7 +33,7 @@ const sanitizeSheetName = (name: string): string => {
  *
  * La hoja puede llevar el nombre del lote o de la campaña.
  */
-export function buildCampaniaXls(campania: any): Buffer {
+export function buildCampaniaXls(campania: any, dolarInsumo = 1): Buffer {
   const supSembrada = num(campania.supSembrada);
   const supCosechada = num(campania.supCosechada);
   const supDiv = (v: number): number => (v > 0 ? v : 1);
@@ -43,19 +43,22 @@ export function buildCampaniaXls(campania: any): Buffer {
     campania.alquilerPrecioXQq === undefined
       ? num(campania.precioXQq)
       : num(campania.alquilerPrecioXQq);
-  const resultados = calcularResultados({
-    supSembrada,
-    supCosechada,
-    prodNetaTotalQq: num(campania.prodNetaTotalQq),
-    precioXQq: num(campania.precioXQq),
-    comercializacionPct: num(campania.comercializacionPct),
-    cosechaXHa: num(campania.cosechaXHa),
-    alquilerQqHa: num(campania.alquilerQqHa),
-    alquilerPrecioXQq: precioAlquiler,
-    labores: campania.labores || [],
-    insumos: campania.insumos || [],
-    costos: campania.costos || [],
-  });
+  const resultados = calcularResultados(
+    {
+      supSembrada,
+      supCosechada,
+      prodNetaTotalQq: num(campania.prodNetaTotalQq),
+      precioXQq: num(campania.precioXQq),
+      comercializacionPct: num(campania.comercializacionPct),
+      cosechaXHa: num(campania.cosechaXHa),
+      alquilerQqHa: num(campania.alquilerQqHa),
+      alquilerPrecioXQq: precioAlquiler,
+      labores: campania.labores || [],
+      insumos: campania.insumos || [],
+      costos: campania.costos || [],
+    },
+    dolarInsumo,
+  );
 
   const loteNombre = campania.lote?.descripcion || `Lote #${campania.idLote}`;
   const variedadNombre = campania.variedad?.nombre || "";

@@ -14,6 +14,7 @@ import { Costo } from "../entities/costo.entity";
 import { Cultivo } from "../entities/cultivo.entity";
 import { Variedad } from "../entities/variedad.entity";
 import { Aseguradora } from "../entities/aseguradora.entity";
+import { CotizacionesService } from "../cotizaciones/cotizaciones.service";
 import { CreateCampaniaDto } from "./dto/create-campania.dto";
 import { UpdateCampaniaDto } from "./dto/update-campania.dto";
 import {
@@ -85,6 +86,7 @@ export class CampaniasService {
     private aseguradoraRepo: Repository<Aseguradora>,
     private notificaciones: NotificacionesService,
     private cache: FirestoreCacheService,
+    private cotizaciones: CotizacionesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -196,25 +198,32 @@ export class CampaniasService {
       cMap.set(c.idCampania, arr);
     }
 
+    // Los costos de insumos se guardan en USD: se convierten a pesos con el
+    // dólar venta, igual que en el detalle (si falla, 1 = sin conversión).
+    const dolarInsumo = await this.obtenerDolarVenta();
+
     return cabeceras.map<CampaniaListItem>((c) => {
       const supSembrada = c.supSembrada != null ? Number(c.supSembrada) : 0;
       const supCosechada = c.supCosechada != null ? Number(c.supCosechada) : 0;
-      const r = calcularResultados({
-        supSembrada,
-        supCosechada,
-        prodNetaTotalQq:
-          c.prodNetaTotalQq != null ? Number(c.prodNetaTotalQq) : 0,
-        precioXQq: c.precioXQq != null ? Number(c.precioXQq) : 0,
-        comercializacionPct:
-          c.comercializacionPct != null ? Number(c.comercializacionPct) : 0,
-        cosechaXHa: c.cosechaXHa != null ? Number(c.cosechaXHa) : 0,
-        alquilerQqHa: c.alquilerQqHa != null ? Number(c.alquilerQqHa) : 0,
-        alquilerPrecioXQq:
-          c.alquilerPrecioXQq != null ? Number(c.alquilerPrecioXQq) : null,
-        labores: lMap.get(c.id) ?? [],
-        insumos: iMap.get(c.id) ?? [],
-        costos: cMap.get(c.id) ?? [],
-      });
+      const r = calcularResultados(
+        {
+          supSembrada,
+          supCosechada,
+          prodNetaTotalQq:
+            c.prodNetaTotalQq != null ? Number(c.prodNetaTotalQq) : 0,
+          precioXQq: c.precioXQq != null ? Number(c.precioXQq) : 0,
+          comercializacionPct:
+            c.comercializacionPct != null ? Number(c.comercializacionPct) : 0,
+          cosechaXHa: c.cosechaXHa != null ? Number(c.cosechaXHa) : 0,
+          alquilerQqHa: c.alquilerQqHa != null ? Number(c.alquilerQqHa) : 0,
+          alquilerPrecioXQq:
+            c.alquilerPrecioXQq != null ? Number(c.alquilerPrecioXQq) : null,
+          labores: lMap.get(c.id) ?? [],
+          insumos: iMap.get(c.id) ?? [],
+          costos: cMap.get(c.id) ?? [],
+        },
+        dolarInsumo,
+      );
       return {
         id: c.id,
         campania: c.campania,
@@ -846,6 +855,16 @@ export class CampaniasService {
       );
     }
     throw e;
+  }
+
+  /** Dólar venta para convertir los costos de insumos (USD) a pesos. */
+  private async obtenerDolarVenta(): Promise<number> {
+    try {
+      const { venta } = await this.cotizaciones.getDolarBNA();
+      return Number.isFinite(venta) && venta > 0 ? venta : 1;
+    } catch {
+      return 1;
+    }
   }
 
   private async campaniaOrThrow(campaniaId: number, user: any) {
