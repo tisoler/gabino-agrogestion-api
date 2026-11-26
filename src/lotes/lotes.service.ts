@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { QueryFailedError, Repository } from "typeorm";
 import * as admin from "firebase-admin";
 import { Lote } from "../entities/lote.entity";
 import { Campo } from "../entities/campo.entity";
@@ -212,7 +212,22 @@ export class LotesService {
       area: createLoteDto.area ?? null,
       idEmpresa,
     });
-    return this.loteRepository.save(lote);
+    await this.assertDescripcionUnica({
+      descripcion: createLoteDto.descripcion,
+      idEmpresa,
+      idCampo: createLoteDto.idCampo ?? null,
+    });
+    try {
+      return await this.loteRepository.save(lote);
+    } catch (e) {
+      // Red de seguridad ante carreras (índice uq_lote_empresa_campo_descripcion).
+      if (e instanceof QueryFailedError && (e as any).code === "23505") {
+        throw new BadRequestException(
+          `Ya existe un lote con el nombre "${String(createLoteDto.descripcion ?? "").trim()}" en este campo.`,
+        );
+      }
+      throw e;
+    }
   }
 
   async update(id: number, updateLoteDto: UpdateLoteDto, user: any) {
@@ -250,7 +265,10 @@ export class LotesService {
         });
         if (!campo)
           throw new BadRequestException("El campo indicado no existe");
-        if (campo.idEmpresa !== null && campo.idEmpresa !== lote.idEmpresa) {
+        if (
+          campo.idEmpresa !== null &&
+          campo.idEmpresa !== (updateLoteDto.idEmpresa ?? lote.idEmpresa)
+        ) {
           throw new BadRequestException(
             "El campo no pertenece a la empresa del lote",
           );
@@ -258,11 +276,83 @@ export class LotesService {
       }
     }
 
+    // Unicidad scoped: solo revalidar si cambia lo que define el scope o el nombre.
+    if (
+      updateLoteDto.descripcion !== undefined ||
+      updateLoteDto.idCampo !== undefined ||
+      (updateLoteDto.idEmpresa !== undefined &&
+        updateLoteDto.idEmpresa !== lote.idEmpresa)
+    ) {
+      await this.assertDescripcionUnica({
+        descripcion:
+          updateLoteDto.descripcion !== undefined
+            ? updateLoteDto.descripcion
+            : lote.descripcion,
+        idEmpresa: updateLoteDto.idEmpresa ?? lote.idEmpresa,
+        idCampo:
+          updateLoteDto.idCampo !== undefined
+            ? updateLoteDto.idCampo
+            : lote.idCampo,
+        excludeId: id,
+      });
+    }
+
     Object.assign(lote, updateLoteDto);
     if (updateLoteDto.alias !== undefined) {
       lote.alias = normalizarAlias(updateLoteDto.alias);
     }
-    return this.loteRepository.save(lote);
+    try {
+      return await this.loteRepository.save(lote);
+    } catch (e) {
+      // Red de seguridad ante carreras (índice uq_lote_empresa_campo_descripcion).
+      if (e instanceof QueryFailedError && (e as any).code === "23505") {
+        throw new BadRequestException(
+          "Ya existe un lote con ese nombre en este campo.",
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Nombre de lote único dentro del campo (y productor), case-insensitive.
+   * Lotes "sin campo" (id_campo NULL) se agrupan entre sí por productor.
+   * Descripciones vacías/NULL no se controlan. `excludeId` para updates.
+   */
+  private async assertDescripcionUnica({
+    descripcion,
+    idEmpresa,
+    idCampo,
+    excludeId,
+  }: {
+    descripcion: string | null | undefined;
+    idEmpresa: number;
+    idCampo: number | null | undefined;
+    excludeId?: number;
+  }) {
+    const trim = (descripcion ?? "").trim();
+    if (!trim) return;
+
+    const qb = this.loteRepository
+      .createQueryBuilder("l")
+      .where("LOWER(l.descripcion) = :lower", { lower: trim.toLowerCase() })
+      .andWhere("l.activo = true")
+      .andWhere("l.idEmpresa = :idEmpresa", { idEmpresa });
+    if (idCampo === null || idCampo === undefined) {
+      qb.andWhere("l.idCampo IS NULL");
+    } else {
+      qb.andWhere("l.idCampo = :idCampo", { idCampo });
+    }
+    if (excludeId !== undefined) {
+      qb.andWhere("l.id <> :excludeId", { excludeId });
+    }
+
+    const conflict = await qb.getOne();
+    if (conflict) {
+      throw new BadRequestException(
+        `Ya existe un lote con el nombre "${trim}" en este campo.`,
+      );
+    }
   }
 }
 
